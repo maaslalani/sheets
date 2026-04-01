@@ -72,6 +72,36 @@ func TestNewProgramModelLoadsCSVFromFirstArg(t *testing.T) {
 	assertCellValue(t, m, 1, 1, "3")
 }
 
+func TestNewProgramModelTracksMissingStartupPathForWrite(t *testing.T) {
+	path := tempCSVPath(t, "new-sheet.csv")
+
+	m, err := newProgramModel([]string{path})
+	if err != nil {
+		t.Fatalf("expected missing startup path to initialize a blank sheet, got %v", err)
+	}
+	if m.currentFilePath != path {
+		t.Fatalf("expected current file path %q, got %q", path, m.currentFilePath)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("expected startup not to create %q before saving", path)
+	} else if !os.IsNotExist(err) {
+		t.Fatalf("expected missing startup file error, got %v", err)
+	}
+
+	m.setCellValue(0, 0, "draft")
+	pending := startCommand(t, m, "write")
+	written := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
+	if written.commandError {
+		t.Fatalf("expected write to create missing startup file, got %q", written.commandMessage)
+	}
+
+	loaded := newModel()
+	if err := loaded.loadCSVFile(path); err != nil {
+		t.Fatalf("expected written startup file to load, got %v", err)
+	}
+	assertCellValue(t, loaded, 0, 0, "draft")
+}
+
 func TestNewModelStartsAtA1(t *testing.T) {
 	m := newModel()
 

@@ -12,6 +12,10 @@ func newProgramModel(args []string) (model, error) {
 	}
 
 	if err := m.loadCSVFile(args[0]); err != nil {
+		if os.IsNotExist(err) {
+			m.currentFilePath = args[0]
+			return m, nil
+		}
 		return model{}, err
 	}
 

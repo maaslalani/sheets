@@ -1,1 +1,2 @@
 *.csv
+!examples/budget.csv
