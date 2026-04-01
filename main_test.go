@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"os"
 	"path/filepath"
@@ -70,6 +71,98 @@ func TestNewProgramModelLoadsCSVFromFirstArg(t *testing.T) {
 	}
 	assertCellValue(t, m, 0, 0, "name")
 	assertCellValue(t, m, 1, 1, "3")
+}
+
+func TestRunQueriesPlainCellValueFromCSV(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "name,value\napples,3\n")
+	var stdout bytes.Buffer
+
+	if err := run([]string{path, "A2"}, &stdout); err != nil {
+		t.Fatalf("expected cell query to succeed, got %v", err)
+	}
+
+	if got, want := stdout.String(), "apples\n"; got != want {
+		t.Fatalf("expected query output %q, got %q", want, got)
+	}
+}
+
+func TestRunQueriesEvaluatedFormulaFromCSV(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "1,2,=A1+B1\n")
+	var stdout bytes.Buffer
+
+	if err := run([]string{path, "C1"}, &stdout); err != nil {
+		t.Fatalf("expected formula query to succeed, got %v", err)
+	}
+
+	if got, want := stdout.String(), "3\n"; got != want {
+		t.Fatalf("expected query output %q, got %q", want, got)
+	}
+}
+
+func TestRunAssignsCellValueInCSV(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "name,value\napples,3\n")
+
+	if err := run([]string{path, "B2=20"}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("expected cell assignment to succeed, got %v", err)
+	}
+
+	loaded := newModel()
+	if err := loaded.loadCSVFile(path); err != nil {
+		t.Fatalf("expected written CSV to load, got %v", err)
+	}
+
+	assertCellValue(t, loaded, 1, 1, "20")
+}
+
+func TestRunAssignsFormulaCellInCSV(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "1,2,\n")
+
+	if err := run([]string{path, "C1==A1+B1"}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("expected formula assignment to succeed, got %v", err)
+	}
+
+	loaded := newModel()
+	if err := loaded.loadCSVFile(path); err != nil {
+		t.Fatalf("expected written CSV to load, got %v", err)
+	}
+
+	assertCellValue(t, loaded, 0, 2, "=A1+B1")
+	if got, err := queryCellValue(path, "C1"); err != nil {
+		t.Fatalf("expected assigned formula cell to be queryable, got %v", err)
+	} else if want := "3"; got != want {
+		t.Fatalf("expected queried formula value %q, got %q", want, got)
+	}
+}
+
+func TestRunRejectsInvalidQueryCell(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "value\n")
+
+	if err := run([]string{path, "not-a-cell"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("expected invalid cell query to fail")
+	}
+}
+
+func TestRunRejectsInvalidAssignmentCell(t *testing.T) {
+	path := writeTempCSV(t, "data.csv", "value\n")
+
+	if err := run([]string{path, "not-a-cell=value"}, &bytes.Buffer{}); err == nil {
+		t.Fatal("expected invalid cell assignment to fail")
+	}
+}
+
+func TestRunAssignsCellInMissingCSVPath(t *testing.T) {
+	path := tempCSVPath(t, "new-sheet.csv")
+
+	if err := run([]string{path, "B8=20"}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("expected assignment against a missing CSV path to succeed, got %v", err)
+	}
+
+	loaded := newModel()
+	if err := loaded.loadCSVFile(path); err != nil {
+		t.Fatalf("expected written CSV to load, got %v", err)
+	}
+
+	assertCellValue(t, loaded, 7, 1, "20")
 }
 
 func TestNewProgramModelTracksMissingStartupPathForWrite(t *testing.T) {

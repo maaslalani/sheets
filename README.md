@@ -2,12 +2,27 @@
 
 Spreadsheets in your terminal.
 
-<img width="1114" height="778" alt="Sheets" src="https://github.com/user-attachments/assets/ed26d54c-caac-4c09-85dd-f5dd5578a936" />
+<img width="1114" height="778" alt="Sheets" src="./examples/demo.gif" />
 
 ## Command Line Interface
 
+Launch the TUI
+
 ```bash
-sheets budget.csv
+> sheets budget.csv
+```
+
+Read a specific `CELL`
+
+```bash
+> sheets budget.csv B9
+2760
+```
+
+Writea specific `CELL`
+
+```bash
+> sheets budget.csv B8=20
 ```
 
 ## Installation

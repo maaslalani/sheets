@@ -4,5 +4,6 @@ Wi-Fi
 Food
 Haircut
 Phone
-Netflix
-Prime
+Netflix,49
+Prime,40
+,=SUM(B)
