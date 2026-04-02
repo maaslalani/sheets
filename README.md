@@ -3,7 +3,10 @@
 Spreadsheets in your terminal.
 
 <br />
-<img width="700" src="./examples/demo.gif?raw=true" alt="Sheets" />
+<p align="center">
+<img width="800" src="./examples/demo.gif?raw=true" alt="Sheets" />
+</p>
+<br />
 
 ## Command Line Interface
 
@@ -50,26 +53,26 @@ Modify a cell:
 * <kbd>gg</kbd>, <kbd>G</kbd>, <kbd>5G</kbd>, <kbd>gB9</kbd>: Jump to the top, bottom, a row number, or a specific cell
 * <kbd>0</kbd>, <kbd>^</kbd>, <kbd>$</kbd>: Jump to the first column, first non-empty column, or last non-empty column in the row
 * <kbd>H</kbd>, <kbd>M</kbd>, <kbd>L</kbd>: Jump to the top, middle, or bottom visible row
-* <kbd>Ctrl+U</kbd>, <kbd>Ctrl+D</kbd>: Move half a page up or down
+* <kbd>ctrl+u</kbd>, <kbd>ctrl+d</kbd>: Move half a page up or down
 * <kbd>zt</kbd>, <kbd>zz</kbd>, <kbd>zb</kbd>,: Align the current row to the top, middle, or bottom of the window
 * <kbd>/</kbd>, <kbd>?</kbd>: Search forward or backward
 * <kbd>n</kbd>, <kbd>N</kbd>: Repeat the last search
 * <kbd>ma</kbd>, <kbd>'a</kbd>: Set a mark and jump back to it later
-* <kbd>Ctrl+O</kbd>, <kbd>Ctrl+I</kbd>: Move backward or forward through the jump list
-* <kbd>q</kbd>, <kbd>Ctrl+C</kbd>: Quit
+* <kbd>ctrl+o</kbd>, <kbd>ctrl+i</kbd>: Move backward or forward through the jump list
+* <kbd>q</kbd>, <kbd>ctrl+c</kbd>: Quit
 
 ### Editing & Selection
 
 * <kbd>i</kbd>, <kbd>I</kbd>, <kbd>c</kbd>: Edit the current cell, edit from the start, or clear the cell and edit
-* <kbd>Esc</kbd>: Leave insert, visual, or command mode
-* <kbd>Enter</kbd>, <kbd>Tab</kbd>, <kbd>Shift+Tab</kbd>: In insert mode, commit and move down, right, or left
-* <kbd>Ctrl+N</kbd>, <kbd>Ctrl+P</kbd>: In insert mode, commit and move down or up
+* <kbd>ESC</kbd>: Leave insert, visual, or command mode
+* <kbd>enter</kbd>, <kbd>tab</kbd>, <kbd>shift+tab</kbd>: In insert mode, commit and move down, right, or left
+* <kbd>ctrl+n</kbd>, <kbd>ctrl+p</kbd>: In insert mode, commit and move down or up
 * <kbd>o</kbd>, <kbd>O</kbd>: Insert a row below or above and start editing
 * <kbd>v</kbd>, <kbd>V</kbd>: Start a visual selection or row selection
 * <kbd>y</kbd>, <kbd>yy</kbd>: Copy the current cell, or yank the current row(s)
 * <kbd>x</kbd>, <kbd>p</kbd>: Cut the current cell or selection, and paste the current register
 * <kbd>dd</kbd>: Delete the current row
-* <kbd>u</kbd>, <kbd>Ctrl+R</kbd>, <kbd>U</kbd>: Undo and redo
+* <kbd>u</kbd>, <kbd>ctrl+r</kbd>, <kbd>U</kbd>: Undo and redo
 * <kbd>.</kbd>: Repeat the last change
 
 ### Visual Mode
