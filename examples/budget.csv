@@ -1,9 +1,9 @@
 Rent,2000
-Utilities,20
-Wi-Fi,20
-Food,304
-Haircut,0
-Phone,4
-Netflix,40
-Prime,40
+Utilities,100
+Wi-Fi,50
+Food,500
+Haircut,50
+Phone,30
+Netflix,20
+Prime,10
 ,=SUM(B)
