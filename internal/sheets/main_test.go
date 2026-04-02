@@ -53,10 +53,12 @@ func TestUpdateQuitsOnCtrlC(t *testing.T) {
 func TestLoadCSVPopulatesSheetAndPreservesFormulas(t *testing.T) {
 	m := newModel()
 	reader := csv.NewReader(strings.NewReader("\"hello,world\",1,=B1+1\nplain,2,\n"))
-
-	if err := m.loadCSV(reader); err != nil {
-		t.Fatalf("expected CSV load to succeed, got %v", err)
+	records, err := reader.ReadAll()
+	if err != nil {
+		t.Fatalf("expected CSV read to succeed, got %v", err)
 	}
+
+	m.loadCSV(records)
 
 	assertCellValue(t, m, 0, 0, "hello,world")
 	assertCellValue(t, m, 0, 2, "=B1+1")
@@ -84,6 +86,60 @@ func TestNewProgramModelLoadsCSVFromStdin(t *testing.T) {
 	assertCellValue(t, m, 0, 0, "name")
 	assertCellValue(t, m, 1, 0, "maas")
 	assertCellValue(t, m, 1, 1, "26")
+}
+
+func TestNewProgramModelLoadsTSVFile(t *testing.T) {
+	path := writeTempTSV(t, "data.tsv", "name\tvalue\napples\t3\n")
+
+	m, err := newProgramModel([]string{path})
+	if err != nil {
+		t.Fatalf("expected startup TSV load to succeed, got %v", err)
+	}
+	assertCellValue(t, m, 0, 0, "name")
+	assertCellValue(t, m, 0, 1, "value")
+	assertCellValue(t, m, 1, 0, "apples")
+	assertCellValue(t, m, 1, 1, "3")
+}
+
+func TestRunQueriesTSVFile(t *testing.T) {
+	path := writeTempTSV(t, "data.tsv", "name\tvalue\napples\t3\n")
+	var stdout bytes.Buffer
+
+	if err := run([]string{path, "A2"}, &stdout); err != nil {
+		t.Fatalf("expected TSV cell query to succeed, got %v", err)
+	}
+
+	if got, want := stdout.String(), "apples\n"; got != want {
+		t.Fatalf("expected TSV query output %q, got %q", want, got)
+	}
+}
+
+func TestRunQueriesCellRangeFromTSV(t *testing.T) {
+	path := writeTempTSV(t, "data.tsv", "1\t2\t=A1+B1\n4\t5\t=A2+B2\n")
+	var stdout bytes.Buffer
+
+	if err := run([]string{path, "A1:C2"}, &stdout); err != nil {
+		t.Fatalf("expected TSV range query to succeed, got %v", err)
+	}
+
+	if got, want := stdout.String(), "1\t2\t3\n4\t5\t9\n"; got != want {
+		t.Fatalf("expected TSV range query output %q, got %q", want, got)
+	}
+}
+
+func TestRunAssignsCellValueInTSV(t *testing.T) {
+	path := writeTempTSV(t, "data.tsv", "name\tvalue\napples\t3\n")
+
+	if err := run([]string{path, "B2=20"}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("expected TSV cell assignment to succeed, got %v", err)
+	}
+
+	loaded := newModel()
+	if err := loaded.loadCSVFile(path); err != nil {
+		t.Fatalf("expected written TSV to load, got %v", err)
+	}
+
+	assertCellValue(t, loaded, 1, 1, "20")
 }
 
 func TestResolveInputStreamsUsesStdinOnlyWhenPipedAndNoArgs(t *testing.T) {
