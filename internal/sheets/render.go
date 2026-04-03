@@ -223,44 +223,131 @@ func (m model) renderContentLine(row, visibleCols int) string {
 		cell := fit(m.displayValue(row, col), m.cellWidth)
 		formula := m.isFormulaDisplayCell(row, col)
 		formulaError := formula && m.isFormulaErrorDisplayCell(row, col)
+		raw := m.cellValue(row, col)
+		_, fmtBold, fmtUnderline, fmtItalic := parseCellFormatting(raw)
+		hasFormatting := fmtBold || fmtUnderline || fmtItalic
 		if row == m.selectedRow && col == m.selectedCol && m.mode == insertMode {
 			b.WriteString(m.renderEditingCell())
-		} else if row == m.selectedRow && col == m.selectedCol && m.mode == selectMode {
-			if formulaError {
-				b.WriteString(m.selectActiveFormulaErrorStyle.Render(cell))
-			} else if formula {
-				b.WriteString(m.selectActiveFormulaStyle.Render(cell))
-			} else {
-				b.WriteString(m.selectActiveCellStyle.Render(cell))
-			}
-		} else if m.mode == selectMode && m.selectionContains(row, col) {
-			if formulaError {
-				b.WriteString(m.selectFormulaErrorStyle.Render(cell))
-			} else if formula {
-				b.WriteString(m.selectFormulaStyle.Render(cell))
-			} else {
-				b.WriteString(m.selectCellStyle.Render(cell))
-			}
-		} else if row == m.selectedRow && col == m.selectedCol {
-			if formulaError {
-				b.WriteString(m.activeFormulaErrorStyle.Render(cell))
-			} else if formula {
-				b.WriteString(m.activeFormulaStyle.Render(cell))
-			} else {
-				b.WriteString(m.activeCellStyle.Render(cell))
-			}
-		} else if formulaError {
-			b.WriteString(m.formulaErrorStyle.Render(cell))
-		} else if formula {
-			b.WriteString(m.formulaCellStyle.Render(cell))
 		} else {
-			b.WriteString(cell)
+			style, styled := m.cellBaseStyle(row, col, formula, formulaError)
+			if hasFormatting {
+				style = applyTextFormatting(style, fmtBold, fmtUnderline, fmtItalic)
+				b.WriteString(style.Render(cell))
+			} else if styled {
+				b.WriteString(style.Render(cell))
+			} else {
+				b.WriteString(cell)
+			}
 		}
 
 		b.WriteString(m.renderVerticalBorder(row, col+1))
 	}
 
 	return b.String()
+}
+
+func (m model) cellBaseStyle(row, col int, formula, formulaError bool) (lipgloss.Style, bool) {
+	switch {
+	case row == m.selectedRow && col == m.selectedCol && m.mode == selectMode:
+		if formulaError {
+			return m.selectActiveFormulaErrorStyle, true
+		}
+		if formula {
+			return m.selectActiveFormulaStyle, true
+		}
+		return m.selectActiveCellStyle, true
+	case m.mode == selectMode && m.selectionContains(row, col):
+		if formulaError {
+			return m.selectFormulaErrorStyle, true
+		}
+		if formula {
+			return m.selectFormulaStyle, true
+		}
+		return m.selectCellStyle, true
+	case row == m.selectedRow && col == m.selectedCol:
+		if formulaError {
+			return m.activeFormulaErrorStyle, true
+		}
+		if formula {
+			return m.activeFormulaStyle, true
+		}
+		return m.activeCellStyle, true
+	case formulaError:
+		return m.formulaErrorStyle, true
+	case formula:
+		return m.formulaCellStyle, true
+	default:
+		return lipgloss.NewStyle(), false
+	}
+}
+
+func applyTextFormatting(style lipgloss.Style, bold, underline, italic bool) lipgloss.Style {
+	if bold {
+		style = style.Bold(true)
+	}
+	if underline {
+		style = style.Underline(true)
+	}
+	if italic {
+		style = style.Italic(true)
+	}
+	return style
+}
+
+func parseCellFormatting(value string) (stripped string, bold, underline, italic bool) {
+	changed := true
+	for changed {
+		changed = false
+		if len(value) >= 2 && value[0] == '*' && value[len(value)-1] == '*' {
+			value = value[1 : len(value)-1]
+			bold = true
+			changed = true
+		}
+		if len(value) >= 2 && value[0] == '_' && value[len(value)-1] == '_' {
+			value = value[1 : len(value)-1]
+			underline = true
+			changed = true
+		}
+		if len(value) >= 2 && value[0] == '/' && value[len(value)-1] == '/' {
+			value = value[1 : len(value)-1]
+			italic = true
+			changed = true
+		}
+	}
+	return value, bold, underline, italic
+}
+
+func (m *model) toggleCellFormatting(marker byte) {
+	raw := m.cellValue(m.selectedRow, m.selectedCol)
+	if raw == "" {
+		return
+	}
+	m.pushUndoState()
+	s := string(marker)
+	if len(raw) >= 2 && raw[0] == marker && raw[len(raw)-1] == marker {
+		m.setCellValue(m.selectedRow, m.selectedCol, raw[1:len(raw)-1])
+	} else {
+		m.setCellValue(m.selectedRow, m.selectedCol, s+raw+s)
+	}
+}
+
+func (m *model) toggleSelectionFormatting(marker byte) {
+	top, bottom, left, right := m.selectionBounds()
+	m.pushUndoState()
+	s := string(marker)
+	for row := top; row <= bottom; row++ {
+		for col := left; col <= right; col++ {
+			raw := m.cellValue(row, col)
+			if raw == "" {
+				continue
+			}
+			if len(raw) >= 2 && raw[0] == marker && raw[len(raw)-1] == marker {
+				m.setCellValue(row, col, raw[1:len(raw)-1])
+			} else {
+				m.setCellValue(row, col, s+raw+s)
+			}
+		}
+	}
 }
 
 func (m model) renderVerticalBorder(row, borderCol int) string {
@@ -366,8 +453,14 @@ func (m model) displayValue(row, col int) string {
 		return m.editingValue
 	}
 
+	raw := m.cellValue(row, col)
+	if !isFormulaCell(raw) {
+		stripped, _, _, _ := parseCellFormatting(raw)
+		return stripped
+	}
+
 	value := m.computedCellValue(row, col)
-	if shouldPrefixDisplayedFormula(m.cellValue(row, col)) {
+	if shouldPrefixDisplayedFormula(raw) {
 		return "=" + value
 	}
 

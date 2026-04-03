@@ -58,22 +58,17 @@ func newModel() model {
 		gridStyle: lipgloss.NewStyle().
 			Foreground(gridGray),
 		formulaCellStyle: lipgloss.NewStyle().
-			Foreground(formulaGreen).
-			Bold(true),
+			Foreground(formulaGreen),
 		formulaErrorStyle: lipgloss.NewStyle().
-			Foreground(errorRed).
-			Bold(true),
+			Foreground(errorRed),
 		activeCellStyle: lipgloss.NewStyle().
-			Reverse(true).
-			Bold(true),
+			Reverse(true),
 		activeFormulaStyle: lipgloss.NewStyle().
 			Reverse(true).
-			Foreground(formulaGreen).
-			Bold(true),
+			Foreground(formulaGreen),
 		activeFormulaErrorStyle: lipgloss.NewStyle().
 			Reverse(true).
-			Foreground(errorRed).
-			Bold(true),
+			Foreground(errorRed),
 		selectCellStyle: lipgloss.NewStyle().
 			Background(selectBackground).
 			Foreground(white).

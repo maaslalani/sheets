@@ -40,6 +40,10 @@ func (m model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clearRegisterState()
 	case tea.KeyCtrlR:
 		m.redoLastOperation()
+	case tea.KeyCtrlB:
+		m.toggleSelectionFormatting('*')
+		m.clearCount()
+		m.clearRegisterState()
 	case tea.KeyCtrlU:
 		m.moveHalfPage(-count)
 		m.clearCount()

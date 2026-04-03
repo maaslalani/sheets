@@ -638,7 +638,7 @@ func TestSumIgnoresBlankAndNonNumericCells(t *testing.T) {
 	m.setCellValue(3, 0, "2.5")
 	m.setCellValue(4, 0, "=SUM(A1:A4)")
 
-	assertDisplayValue(t, m, 4, 0, "3.5")
+	assertDisplayValue(t, m, 4, 0, "3.50")
 }
 
 func TestSumColumnShorthandUsesRowsBeforeCurrentCell(t *testing.T) {
@@ -753,7 +753,7 @@ func TestAggregateFunctionsColumnShorthandUseRowsBeforeCurrentCell(t *testing.T)
 		col  int
 		want string
 	}{
-		{name: "avg", col: 1, want: "=2.5"},
+		{name: "avg", col: 1, want: "=2.50"},
 		{name: "min", col: 2, want: "=1"},
 		{name: "max", col: 3, want: "=4"},
 		{name: "count", col: 4, want: "=2"},

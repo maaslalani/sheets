@@ -3,6 +3,7 @@ package sheets
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -40,7 +41,10 @@ func (v formulaValue) String() string {
 		if v.number == 0 {
 			return "0"
 		}
-		return strconv.FormatFloat(v.number, 'f', -1, 64)
+		if v.number == math.Trunc(v.number) {
+			return strconv.FormatFloat(v.number, 'f', -1, 64)
+		}
+		return strconv.FormatFloat(v.number, 'f', 2, 64)
 	default:
 		return v.text
 	}
@@ -52,7 +56,9 @@ func parseScalarCellValue(raw string) formulaValue {
 		return blankFormulaValue()
 	}
 
-	if number, err := strconv.ParseFloat(trimmed, 64); err == nil {
+	stripped, _, _, _ := parseCellFormatting(trimmed)
+	numeric := strings.TrimPrefix(stripped, "$")
+	if number, err := strconv.ParseFloat(numeric, 64); err == nil {
 		return numberFormulaValue(number)
 	}
 
