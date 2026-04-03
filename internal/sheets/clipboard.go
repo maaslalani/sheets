@@ -1,6 +1,10 @@
 package sheets
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"strings"
+	sysclip "github.com/atotto/clipboard"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func cloneKeySequence(keys []tea.KeyMsg) []tea.KeyMsg {
 	return append([]tea.KeyMsg(nil), keys...)
@@ -16,6 +20,17 @@ func cloneClipboard(clip clipboard) clipboard {
 		cloned.cells[i] = append([]string(nil), row...)
 	}
 	return cloned
+}
+
+func (clip clipboard) String() string {
+	var build strings.Builder
+	for i, row := range clip.cells {
+		build.WriteString(strings.Join(row, "\t"))
+		if i < len(clip.cells)-1 {
+			build.WriteString("\n")
+		}
+	}
+	return build.String()
 }
 
 func (m *model) saveLastChange(keys []tea.KeyMsg) {
@@ -77,6 +92,7 @@ func (m *model) storeYankClipboard(clip clipboard) {
 		m.setRegisterClipboard(m.activeRegister, clip)
 	}
 	m.setUnnamedClipboard(clip)
+	_ = sysclip.WriteAll(clip.String())
 }
 
 func (m *model) storeDeleteClipboard(clip clipboard) {
@@ -88,6 +104,7 @@ func (m *model) storeDeleteClipboard(clip clipboard) {
 	}
 	m.shiftDeleteRegisters(clip)
 	m.setUnnamedClipboard(clip)
+	_ = sysclip.WriteAll(clip.String())
 }
 
 func (m model) clipboardForPaste() (clipboard, bool) {
