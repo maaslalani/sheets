@@ -146,28 +146,28 @@ func (m *model) loadCSVFile(path string) error {
 	}
 	defer file.Close()
 
-	if err := m.loadCSVReader(file); err != nil {
+	records, err := newDelimitedReader(path, file).ReadAll()
+	if err != nil {
 		return err
 	}
+
+	m.loadCSV(records)
 	m.currentFilePath = path
 	return nil
 }
 
 func (m *model) loadCSVReader(reader io.Reader) error {
-	csvReader := csv.NewReader(reader)
-	csvReader.FieldsPerRecord = -1
-	if err := m.loadCSV(csvReader); err != nil {
+	records, err := newDelimitedReader(".csv", reader).ReadAll()
+	if err != nil {
 		return err
 	}
+
+	m.loadCSV(records)
 	m.currentFilePath = ""
 	return nil
 }
 
-func (m *model) loadCSV(reader *csv.Reader) error {
-	records, err := reader.ReadAll()
-	if err != nil {
-		return err
-	}
+func (m *model) loadCSV(records [][]string) error {
 
 	m.cells = make(map[cellKey]string)
 	m.rowCount = defaultRows
@@ -265,8 +265,7 @@ func (m model) writeCSVFile(path string) error {
 	}
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	return m.writeCSV(writer)
+	return m.writeCSV(newDelimitedWriter(path, file))
 }
 
 func (m model) Init() tea.Cmd {

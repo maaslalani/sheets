@@ -49,6 +49,17 @@ func writeTempCSV(t *testing.T, relativePath, contents string) string {
 	return path
 }
 
+func writeTempTSV(t *testing.T, relativePath, contents string) string {
+	t.Helper()
+
+	path := tempCSVPath(t, relativePath)
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("expected temp TSV write to succeed, got %v", err)
+	}
+
+	return path
+}
+
 func runeKey(value string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
 }

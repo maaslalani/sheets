@@ -269,9 +269,9 @@ func assignmentMatrixForRange(target cellRange, values [][]string) ([][]string, 
 	)
 }
 
-func writeQueryRecords(stdout io.Writer, records [][][]string) error {
+func writeQueryRecords(stdout io.Writer, path string, records [][][]string) error {
 	for _, block := range records {
-		writer := csv.NewWriter(stdout)
+		writer := newDelimitedWriter(path, stdout)
 		if err := writer.WriteAll(block); err != nil {
 			return err
 		}
@@ -391,7 +391,7 @@ func runCLI(args []string, stdout io.Writer) error {
 		}
 	}
 
-	return writeQueryRecords(stdout, queryResults)
+	return writeQueryRecords(stdout, path, queryResults)
 }
 
 func Main(args []string, stdin *os.File, stdout, stderr io.Writer) int {
