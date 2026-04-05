@@ -123,7 +123,8 @@ func (m *model) executePrompt() tea.Cmd {
 			return nil
 		}
 		return tea.Quit
-	case strings.EqualFold(command, "help"):
+	case strings.EqualFold(command, "help"),
+		strings.EqualFold(command, "?"):
 		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path]"
 		m.commandError = false
 		return nil
