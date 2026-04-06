@@ -251,6 +251,16 @@ func (m *model) cutSelection() {
 	}
 }
 
+func (m *model) deleteSelection() {
+	top, bottom, left, right := m.selectionBounds()
+	m.pushUndoState()
+	for row := top; row <= bottom; row++ {
+		for col := left; col <= right; col++ {
+			m.setCellValue(row, col, "")
+		}
+	}
+}
+
 func (m *model) pasteIntoCurrentCell(count int) bool {
 	clip, ok := m.clipboardForPaste()
 	if !ok {

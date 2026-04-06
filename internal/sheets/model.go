@@ -35,6 +35,7 @@ func newModel() model {
 
 	return model{
 		mode:          normalMode,
+		keymap:        LoadKeymapConfig(),
 		rowCount:      defaultRows,
 		selectedRow:   0,
 		selectedCol:   0,

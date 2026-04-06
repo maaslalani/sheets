@@ -8,187 +8,222 @@ import (
 	"unicode"
 )
 
+func defaultNormalKeys() Keymap {
+	return Keymap{
+		"h": ActionMoveLeft, "left": ActionMoveLeft,
+		"j": ActionMoveDown, "down": ActionMoveDown,
+		"k": ActionMoveUp, "up": ActionMoveUp,
+		"l": ActionMoveRight, "right": ActionMoveRight,
+		"0": ActionMoveToFirstCol,
+		"^": ActionMoveToFirstNonempty,
+		"$": ActionMoveToLastNonempty,
+		"H": ActionMoveToWindowTop,
+		"M": ActionMoveToWindowMiddle,
+		"L": ActionMoveToWindowBottom,
+		"C-d": ActionScrollHalfDown,
+		"C-u": ActionScrollHalfUp,
+		"g":   ActionGotoPending,
+		"G":   ActionGotoBottom,
+		"C-o": ActionJumpBackward,
+		"tab":  ActionJumpForward, // Ctrl+I == Tab in terminals
+		"q":  ActionQuit,
+		":":  ActionCommandPrompt,
+		"/":  ActionSearchForward,
+		"?":  ActionSearchBackward,
+		"i":  ActionEnterInsert,
+		"I":  ActionEnterInsertStart,
+		"c":  ActionChangeCell,
+		"d":  ActionDeletePending,
+		"a":  ActionOpenColAfter,
+		"A":  ActionOpenColBefore,
+		"o":  ActionOpenRowBelow,
+		"O":  ActionOpenRowAbove,
+		"v":  ActionEnterSelect,
+		"V":  ActionEnterRowSelect,
+		"u":  ActionUndo,
+		"U":  ActionRedo,
+		"C-r": ActionRedo,
+		"y":  ActionYank,
+		"x":  ActionCut,
+		"p":  ActionPaste,
+		".":  ActionRepeatChange,
+		"n":  ActionSearchNext,
+		"N":  ActionSearchPrev,
+		"m":  ActionMarkSet,
+		"'":  ActionMarkJump,
+		"`":  ActionMarkJumpExact,
+		"\"": ActionRegisterPending,
+		"C-b": ActionToggleBold,
+		"z":  ActionAlignPending,
+	}
+}
+
 func (m model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && isCountDigit(msg.Runes[0], m.countBuffer != "") {
 		m.countBuffer += string(msg.Runes[0])
 		return m, nil
 	}
 
+	action, ok := m.keymap.Normal[keyToString(msg)]
+	if !ok {
+		return m, nil
+	}
+
 	hasCount := m.countBuffer != ""
 	count := m.currentCount()
-	switch msg.Type {
-	case tea.KeyLeft:
+
+	switch action {
+	case ActionMoveLeft:
 		m.moveSelection(0, -count)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyDown:
+	case ActionMoveDown:
 		m.moveSelection(count, 0)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyUp:
+	case ActionMoveUp:
 		m.moveSelection(-count, 0)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyRight:
+	case ActionMoveRight:
 		m.moveSelection(0, count)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyCtrlD:
+	case ActionMoveToFirstCol:
+		m.moveToColumn(0)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMoveToFirstNonempty:
+		m.moveToColumn(m.firstNonBlankColumn(m.selectedRow))
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMoveToLastNonempty:
+		m.moveToColumn(m.lastNonBlankColumn(m.selectedRow))
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMoveToWindowTop:
+		m.moveToWindowTop(count)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMoveToWindowMiddle:
+		m.moveToWindowMiddle()
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMoveToWindowBottom:
+		m.moveToWindowBottom(count)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionScrollHalfDown:
 		m.moveHalfPage(count)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyCtrlI:
-		m.navigateJumpList(1, count)
-		m.clearCount()
-		m.clearRegisterState()
-	case tea.KeyCtrlO:
-		m.navigateJumpList(-1, count)
-		m.clearCount()
-		m.clearRegisterState()
-	case tea.KeyCtrlR:
-		m.redoLastOperation()
-	case tea.KeyCtrlB:
-		m.toggleCellFormatting('*')
-		m.clearCount()
-		m.clearRegisterState()
-	case tea.KeyCtrlU:
+	case ActionScrollHalfUp:
 		m.moveHalfPage(-count)
 		m.clearCount()
 		m.clearRegisterState()
-	case tea.KeyRunes:
-		switch string(msg.Runes) {
-		case "q":
-			return m, tea.Quit
-		case ":":
-			m.clearNormalPrefixes()
-			return m, m.startCommandPrompt()
-		case "/":
-			m.clearNormalPrefixes()
-			return m, m.startSearchPrompt(1)
-		case "?":
-			m.clearNormalPrefixes()
-			return m, m.startSearchPrompt(-1)
-		case "\"":
-			m.registerPending = true
-			return m, nil
-		case "g":
-			m.startGotoCellCommand()
-		case "G":
-			if hasCount {
-				m.recordJumpFromCurrent()
-				m.goToCell(count-1, m.selectedCol)
-			} else {
-				m.recordJumpFromCurrent()
-				m.goToBottom()
-			}
-			m.clearCount()
-			m.clearRegisterState()
-		case "h":
-			m.moveSelection(0, -count)
-			m.clearCount()
-			m.clearRegisterState()
-		case "j":
-			m.moveSelection(count, 0)
-			m.clearCount()
-			m.clearRegisterState()
-		case "k":
-			m.moveSelection(-count, 0)
-			m.clearCount()
-			m.clearRegisterState()
-		case "l":
-			m.moveSelection(0, count)
-			m.clearCount()
-			m.clearRegisterState()
-		case "0":
-			m.moveToColumn(0)
-			m.clearCount()
-			m.clearRegisterState()
-		case "^":
-			m.moveToColumn(m.firstNonBlankColumn(m.selectedRow))
-			m.clearCount()
-			m.clearRegisterState()
-		case "$":
-			m.moveToColumn(m.lastNonBlankColumn(m.selectedRow))
-			m.clearCount()
-			m.clearRegisterState()
-		case "H":
-			m.moveToWindowTop(count)
-			m.clearCount()
-			m.clearRegisterState()
-		case "M":
-			m.moveToWindowMiddle()
-			m.clearCount()
-			m.clearRegisterState()
-		case "L":
-			m.moveToWindowBottom(count)
-			m.clearCount()
-			m.clearRegisterState()
-		case "z":
-			m.zPending = true
-		case "i":
-			return m, m.enterInsertModeWithKeys(append(m.commandPrefixKeys(), msg))
-		case "I":
-			return m, m.enterInsertModeAtStartWithKeys(append(m.commandPrefixKeys(), msg))
-		case "c":
-			return m.changeCurrentCell(append(m.commandPrefixKeys(), msg))
-		case "d":
-			m.startDeleteRowCommand()
-		case "a":
-			return m, m.openColAfterWithKeys(append(m.commandPrefixKeys(), msg))
-		case "A":
-			return m, m.openColBeforeWithKeys(append(m.commandPrefixKeys(), msg))
-		case "o":
-			return m, m.openRowBelowWithKeys(append(m.commandPrefixKeys(), msg))
-		case "O":
-			return m, m.openRowAboveWithKeys(append(m.commandPrefixKeys(), msg))
-		case "v":
-			m.clearNormalPrefixes()
-			m.enterSelectMode()
-		case "V":
-			m.clearNormalPrefixes()
-			m.enterRowSelectMode()
-		case "u":
-			m.undoLastOperation()
-		case "U": // helix-like shift+u redo
-			m.redoLastOperation()
-		case "y":
-			m.copyCurrentCell(count)
-			m.yankCount = count
-			m.clearCount()
-			m.yankPending = true
-		case "x":
-			if m.cutCurrentCell(count) {
-				m.saveLastChange(append(m.commandPrefixKeys(), msg))
-			}
-			m.clearCount()
-			m.clearRegisterState()
-		case "p":
-			if m.pasteIntoCurrentCell(count) {
-				m.saveLastChange(append(m.commandPrefixKeys(), msg))
-			}
-			m.clearCount()
-			m.clearRegisterState()
-		case "n":
-			m.repeatSearch(count, false)
-			m.clearCount()
-			m.clearRegisterState()
-		case "N":
-			m.repeatSearch(count, true)
-			m.clearCount()
-			m.clearRegisterState()
-		case ".":
-			m.repeatLastChange(count)
-			m.clearCount()
-			m.clearRegisterState()
-		case "m":
-			m.markPending = true
-		case "'":
-			m.markJumpPending = true
-			m.markJumpExact = false
-		case "`":
-			m.markJumpPending = true
-			m.markJumpExact = true
+	case ActionGotoPending:
+		m.startGotoCellCommand()
+	case ActionGotoBottom:
+		if hasCount {
+			m.recordJumpFromCurrent()
+			m.goToCell(count-1, m.selectedCol)
+		} else {
+			m.recordJumpFromCurrent()
+			m.goToBottom()
 		}
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionJumpBackward:
+		m.navigateJumpList(-1, count)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionJumpForward:
+		m.navigateJumpList(1, count)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionQuit:
+		return m, tea.Quit
+	case ActionCommandPrompt:
+		m.clearNormalPrefixes()
+		return m, m.startCommandPrompt()
+	case ActionSearchForward:
+		m.clearNormalPrefixes()
+		return m, m.startSearchPrompt(1)
+	case ActionSearchBackward:
+		m.clearNormalPrefixes()
+		return m, m.startSearchPrompt(-1)
+	case ActionEnterInsert:
+		return m, m.enterInsertModeWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionEnterInsertStart:
+		return m, m.enterInsertModeAtStartWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionChangeCell:
+		return m.changeCurrentCell(append(m.commandPrefixKeys(), msg))
+	case ActionDeletePending:
+		m.startDeleteRowCommand()
+	case ActionOpenColAfter:
+		return m, m.openColAfterWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionOpenColBefore:
+		return m, m.openColBeforeWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionOpenRowBelow:
+		return m, m.openRowBelowWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionOpenRowAbove:
+		return m, m.openRowAboveWithKeys(append(m.commandPrefixKeys(), msg))
+	case ActionEnterSelect:
+		m.clearNormalPrefixes()
+		m.enterSelectMode()
+	case ActionEnterRowSelect:
+		m.clearNormalPrefixes()
+		m.enterRowSelectMode()
+	case ActionUndo:
+		m.undoLastOperation()
+	case ActionRedo:
+		m.redoLastOperation()
+	case ActionYank:
+		m.copyCurrentCell(count)
+		m.yankCount = count
+		m.clearCount()
+		m.yankPending = true
+	case ActionCut:
+		if m.cutCurrentCell(count) {
+			m.saveLastChange(append(m.commandPrefixKeys(), msg))
+		}
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionPaste:
+		if m.pasteIntoCurrentCell(count) {
+			m.saveLastChange(append(m.commandPrefixKeys(), msg))
+		}
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionRepeatChange:
+		m.repeatLastChange(count)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionSearchNext:
+		m.repeatSearch(count, false)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionSearchPrev:
+		m.repeatSearch(count, true)
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionMarkSet:
+		m.markPending = true
+	case ActionMarkJump:
+		m.markJumpPending = true
+		m.markJumpExact = false
+	case ActionMarkJumpExact:
+		m.markJumpPending = true
+		m.markJumpExact = true
+	case ActionRegisterPending:
+		m.registerPending = true
+		return m, nil
+	case ActionToggleBold:
+		m.toggleCellFormatting('*')
+		m.clearCount()
+		m.clearRegisterState()
+	case ActionAlignPending:
+		m.zPending = true
 	}
 
 	return m, nil
