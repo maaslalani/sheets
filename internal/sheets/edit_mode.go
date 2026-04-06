@@ -9,58 +9,83 @@ import (
 	"unicode"
 )
 
+func defaultInsertKeys() Keymap {
+	return Keymap{
+		"ret":       ActionCommitDown,
+		"tab":       ActionCommitRight,
+		"S-tab":     ActionCommitLeft,
+		"C-n":       ActionCommitDown,
+		"C-p":       ActionCommitUp,
+		"left":      ActionCursorLeft,
+		"C-b":       ActionCursorLeft,
+		"right":     ActionCursorRight,
+		"C-f":       ActionCursorRight,
+		"home":      ActionCursorHome,
+		"C-a":       ActionCursorHome,
+		"end":       ActionCursorEnd,
+		"C-e":       ActionCursorEnd,
+		"del":       ActionDeleteAtCursor,
+		"C-d":       ActionDeleteAtCursor,
+		"backspace": ActionDeleteBeforeCursor, // Ctrl+H == Backspace in terminals
+		"C-u":       ActionDeleteToStart,
+		"C-k":       ActionDeleteToEnd,
+		"C-w":       ActionDeleteWordBefore,
+		"space":     ActionInsertSpace,
+	}
+}
+
 func (m model) updateInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.recordingInsert && !m.replayingChange {
 		m.insertKeys = append(m.insertKeys, msg)
 	}
-	switch msg.Type {
-	case tea.KeyEnter:
-		return m.moveInsertSelection(1, 0)
-	case tea.KeyTab:
-		return m.moveInsertSelection(0, 1)
-	case tea.KeyShiftTab:
-		return m.moveInsertSelection(0, -1)
-	case tea.KeyCtrlN:
-		return m.moveInsertSelection(1, 0)
-	case tea.KeyCtrlP:
-		return m.moveInsertSelection(-1, 0)
-	case tea.KeyLeft, tea.KeyCtrlB:
-		m.moveEditingCursor(-1)
-		return m, m.restartCursorBlink()
-	case tea.KeyRight, tea.KeyCtrlF:
-		m.moveEditingCursor(1)
-		return m, m.restartCursorBlink()
-	case tea.KeyHome, tea.KeyCtrlA:
-		m.editingCursor = 0
-		return m, m.restartCursorBlink()
-	case tea.KeyEnd, tea.KeyCtrlE:
-		m.editingCursor = len([]rune(strings.ReplaceAll(m.editingValue, "\n", " ")))
-		return m, m.restartCursorBlink()
-	case tea.KeyDelete, tea.KeyCtrlD:
-		m.deleteAtEditingCursor()
-		return m, m.restartCursorBlink()
-	case tea.KeySpace:
-		m.insertRunesAtEditingCursor([]rune{' '})
-		return m, m.restartCursorBlink()
-	case tea.KeyCtrlK:
-		m.deleteToEndOfEditingCursor()
-		return m, m.restartCursorBlink()
-	case tea.KeyCtrlU:
-		m.deleteToStartOfEditingCursor()
-		return m, m.restartCursorBlink()
-	case tea.KeyCtrlW:
-		m.deleteWordBeforeEditingCursor()
-		return m, m.restartCursorBlink()
-	case tea.KeyRunes:
-		if len(msg.Runes) > 0 {
-			m.insertRunesAtEditingCursor(msg.Runes)
+
+	action, ok := m.keymap.Insert[keyToString(msg)]
+	if ok {
+		switch action {
+		case ActionCommitDown:
+			return m.moveInsertSelection(1, 0)
+		case ActionCommitRight:
+			return m.moveInsertSelection(0, 1)
+		case ActionCommitLeft:
+			return m.moveInsertSelection(0, -1)
+		case ActionCommitUp:
+			return m.moveInsertSelection(-1, 0)
+		case ActionCursorLeft:
+			m.moveEditingCursor(-1)
+			return m, m.restartCursorBlink()
+		case ActionCursorRight:
+			m.moveEditingCursor(1)
+			return m, m.restartCursorBlink()
+		case ActionCursorHome:
+			m.editingCursor = 0
+			return m, m.restartCursorBlink()
+		case ActionCursorEnd:
+			m.editingCursor = len([]rune(strings.ReplaceAll(m.editingValue, "\n", " ")))
+			return m, m.restartCursorBlink()
+		case ActionDeleteAtCursor:
+			m.deleteAtEditingCursor()
+			return m, m.restartCursorBlink()
+		case ActionDeleteBeforeCursor:
+			m.deleteBeforeEditingCursor()
+			return m, m.restartCursorBlink()
+		case ActionDeleteToStart:
+			m.deleteToStartOfEditingCursor()
+			return m, m.restartCursorBlink()
+		case ActionDeleteToEnd:
+			m.deleteToEndOfEditingCursor()
+			return m, m.restartCursorBlink()
+		case ActionDeleteWordBefore:
+			m.deleteWordBeforeEditingCursor()
+			return m, m.restartCursorBlink()
+		case ActionInsertSpace:
+			m.insertRunesAtEditingCursor([]rune{' '})
 			return m, m.restartCursorBlink()
 		}
 	}
 
-	switch msg.String() {
-	case "backspace", "ctrl+h":
-		m.deleteBeforeEditingCursor()
+	// Fallback: insert typed runes (not configurable — raw text input).
+	if msg.Type == tea.KeyRunes && len(msg.Runes) > 0 {
+		m.insertRunesAtEditingCursor(msg.Runes)
 		return m, m.restartCursorBlink()
 	}
 

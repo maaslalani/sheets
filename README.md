@@ -89,6 +89,120 @@ Press <kbd>:</kbd> to open the command prompt, then use commands such as:
 - <kbd>:q</kbd> or <kbd>:wq</kbd> to quit
 - <kbd>:goto B9</kbd> or <kbd>:B9</kbd> to jump to a cell
 
+## Configuration
+
+Keybindings can be customized via a [Helix](https://docs.helix-editor.com/keymap.html)-style TOML config file at `~/.config/sheets/config.toml` (or `$XDG_CONFIG_HOME/sheets/config.toml`).
+
+```toml
+[keys.normal]
+"C-c" = "quit"
+"C-s" = "command_prompt"
+
+[keys.insert]
+"C-c" = "commit_down"
+
+[keys.select]
+"d" = "cut_selection"
+```
+
+Each section maps a key to an action name. Only specify the bindings you want to override — unset keys keep their defaults. Set a key to `"nop"` to disable it.
+
+<details>
+<summary>Available actions</summary>
+
+#### Navigation
+
+| Action | Description |
+|--------|-------------|
+| `move_left` | Move one cell left |
+| `move_right` | Move one cell right |
+| `move_up` | Move one cell up |
+| `move_down` | Move one cell down |
+| `move_to_first_col` | Jump to first column |
+| `move_to_first_nonempty_col` | Jump to first non-empty column |
+| `move_to_last_nonempty_col` | Jump to last non-empty column |
+| `move_to_window_top` | Jump to top visible row |
+| `move_to_window_middle` | Jump to middle visible row |
+| `move_to_window_bottom` | Jump to bottom visible row |
+| `scroll_half_up` | Scroll half page up |
+| `scroll_half_down` | Scroll half page down |
+| `goto_pending` | Start goto cell input |
+| `goto_bottom` | Jump to last row |
+| `jump_forward` | Jump list forward |
+| `jump_backward` | Jump list backward |
+
+#### Editing
+
+| Action | Description |
+|--------|-------------|
+| `enter_insert` | Edit current cell |
+| `enter_insert_start` | Edit from start of cell |
+| `change_cell` | Clear cell and edit |
+| `delete_pending` | Start delete row |
+| `open_col_after` | Insert column after and edit |
+| `open_col_before` | Insert column before and edit |
+| `open_row_below` | Insert row below and edit |
+| `open_row_above` | Insert row above and edit |
+| `yank` | Copy cell |
+| `cut` | Cut cell |
+| `paste` | Paste |
+| `undo` | Undo |
+| `redo` | Redo |
+| `repeat_change` | Repeat last change |
+| `toggle_bold` | Toggle bold formatting |
+
+#### Mode
+
+| Action | Description |
+|--------|-------------|
+| `quit` | Quit |
+| `command_prompt` | Open command prompt |
+| `search_forward` | Search forward |
+| `search_backward` | Search backward |
+| `search_next` | Next search match |
+| `search_prev` | Previous search match |
+| `enter_select` | Enter visual select |
+| `enter_row_select` | Enter row select |
+| `register_pending` | Select register |
+| `mark_set` | Set mark |
+| `mark_jump` | Jump to mark |
+| `mark_jump_exact` | Jump to mark (exact) |
+| `align_pending` | Start alignment command |
+
+#### Select mode
+
+| Action | Description |
+|--------|-------------|
+| `copy_selection` | Copy selection |
+| `copy_selection_ref` | Copy selection as reference |
+| `cut_selection` | Cut selection |
+| `formula_from_selection` | Insert formula from selection |
+| `toggle_row_select` | Toggle row selection |
+| `toggle_selection_bold` | Toggle bold on selection |
+
+#### Insert mode
+
+| Action | Description |
+|--------|-------------|
+| `commit_down` | Commit and move down |
+| `commit_right` | Commit and move right |
+| `commit_left` | Commit and move left |
+| `commit_up` | Commit and move up |
+| `cursor_left` | Move cursor left |
+| `cursor_right` | Move cursor right |
+| `cursor_home` | Move cursor to start |
+| `cursor_end` | Move cursor to end |
+| `delete_at_cursor` | Delete at cursor |
+| `delete_before_cursor` | Delete before cursor |
+| `delete_to_start` | Delete to start |
+| `delete_to_end` | Delete to end |
+| `delete_word_before` | Delete word before cursor |
+| `insert_space` | Insert space |
+
+</details>
+
+**Key notation:** `C-x` for Ctrl+x, `S-tab` for Shift+Tab, `ret` for Enter, `space`, `backspace`, `del`, `esc`, `up`/`down`/`left`/`right`, `home`/`end`, `tab`. Literal characters like `h`, `j`, `:`, `/` are written as-is.
+
 ## Installation
 
 <!--

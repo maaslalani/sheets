@@ -141,6 +141,8 @@ type model struct {
 	rowOffset   int
 	colOffset   int
 
+	keymap KeymapConfig
+
 	cellWidth     int
 	rowLabelWidth int
 
