@@ -310,8 +310,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		if isQuitKey(msg) {
-			return m, tea.Quit
+		// Ctrl-C acts as Escape (like vim), not quit
+		if isCtrlCKey(msg) {
+			switch m.mode {
+			case insertMode:
+				if m.recordingInsert && !m.replayingChange {
+					m.insertKeys = append(m.insertKeys, msg)
+				}
+				return m.exitInsertMode()
+			case selectMode:
+				m.clearNormalPrefixes()
+				return m.exitSelectMode(), nil
+			case commandMode:
+				m.clearCommandPrompt()
+				return m, nil
+			}
+			// In normal mode, Ctrl-C does nothing (use q or :q to quit)
+			return m, nil
 		}
 		if !m.commandPending {
 			m.commandMessage = ""
@@ -385,7 +400,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func isQuitKey(msg tea.KeyMsg) bool {
+func isCtrlCKey(msg tea.KeyMsg) bool {
 	if msg.Type == tea.KeyCtrlC {
 		return true
 	}
