@@ -56,6 +56,7 @@ const (
 	ActionCopySelection         Action = "copy_selection"
 	ActionCopySelectionRef      Action = "copy_selection_ref"
 	ActionCutSelection          Action = "cut_selection"
+	ActionDeleteSelection       Action = "delete_selection"
 	ActionFormulaFromSelection  Action = "formula_from_selection"
 	ActionToggleRowSelect       Action = "toggle_row_select"
 	ActionToggleSelectionBold   Action = "toggle_selection_bold"

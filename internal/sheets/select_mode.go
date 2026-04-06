@@ -23,6 +23,7 @@ func defaultSelectKeys() Keymap {
 		"y":    ActionCopySelection,
 		"Y":    ActionCopySelectionRef,
 		"x":    ActionCutSelection,
+		"D":    ActionDeleteSelection,
 		"=":    ActionFormulaFromSelection,
 		"V":    ActionToggleRowSelect,
 		"u":    ActionUndo,
@@ -130,6 +131,11 @@ func (m model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.exitSelectMode(), nil
 	case ActionCutSelection:
 		m.cutSelection()
+		m.clearCount()
+		m.clearRegisterState()
+		return m.exitSelectMode(), nil
+	case ActionDeleteSelection:
+		m.deleteSelection()
 		m.clearCount()
 		m.clearRegisterState()
 		return m.exitSelectMode(), nil

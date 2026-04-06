@@ -176,6 +176,7 @@ Each section maps a key to an action name. Only specify the bindings you want to
 | `copy_selection` | Copy selection |
 | `copy_selection_ref` | Copy selection as reference |
 | `cut_selection` | Cut selection |
+| `delete_selection` | Clear selection without affecting clipboard |
 | `formula_from_selection` | Insert formula from selection |
 | `toggle_row_select` | Toggle row selection |
 | `toggle_selection_bold` | Toggle bold on selection |
