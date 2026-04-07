@@ -1,6 +1,7 @@
 package sheets
 
 import (
+	"github.com/mattn/go-runewidth"
 	"strconv"
 	"strings"
 )
@@ -278,6 +279,28 @@ func columnLabel(col int) string {
 
 func cellRef(row, col int) string {
 	return columnLabel(col) + strconv.Itoa(row+1)
+}
+
+func (m model) colWidth(col int) int {
+	if w, ok := m.colWidths[col]; ok {
+		return w
+	}
+	return m.cellWidth
+}
+
+func (m model) maxContentWidthForCol(col int) int {
+	maxW := 4
+	for key, val := range m.cells {
+		if key.col != col {
+			continue
+		}
+		stripped, _, _, _ := parseCellFormatting(val)
+		w := runewidth.StringWidth(stripped)
+		if w > maxW {
+			maxW = w
+		}
+	}
+	return maxW
 }
 
 func clamp(value, low, high int) int {
