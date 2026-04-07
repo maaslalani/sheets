@@ -22,7 +22,17 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
+      - name: Run GoReleaser snapshot
+        if: github.event_name == 'pull_request'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
+        if: github.event_name == 'push'
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
