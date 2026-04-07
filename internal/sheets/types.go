@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	defaultRows = 999
-	maxRows     = 50000
-	totalCols   = 52
+	defaultRows  = 999
+	maxRows      = 50000
+	totalCols    = 52
+	minCellWidth = 1
 )
 
 type mode string
@@ -44,6 +45,7 @@ const (
 
 type undoState struct {
 	cells       map[cellKey]string
+	colWidths   map[int]int
 	rowCount    int
 	selectedRow int
 	selectedCol int
@@ -143,6 +145,7 @@ type model struct {
 
 	cellWidth     int
 	rowLabelWidth int
+	colWidths     map[int]int
 
 	cells           map[cellKey]string
 	copyBuffer      clipboard

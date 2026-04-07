@@ -86,6 +86,8 @@ Press <kbd>:</kbd> to open the command prompt, then use commands such as:
 - <kbd>:w</kbd> to save
 - <kbd>:w</kbd> <code>path.csv</code> to save to a new file
 - <kbd>:e</kbd> <code>path.csv</code> to open another CSV
+- <kbd>:fit</kbd> to fit the current column to its displayed contents
+- <kbd>:fit width</kbd> to fit visible columns to the current screen width
 - <kbd>:q</kbd> or <kbd>:wq</kbd> to quit
 - <kbd>:goto B9</kbd> or <kbd>:B9</kbd> to jump to a cell
 

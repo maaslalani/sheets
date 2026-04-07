@@ -42,6 +42,7 @@ func newModel() model {
 		selectCol:     0,
 		cellWidth:     12,
 		rowLabelWidth: rowLabelWidthForCount(defaultRows),
+		colWidths:     make(map[int]int),
 		cells:         make(map[cellKey]string),
 		registers:     make(map[rune]clipboard),
 		marks:         make(map[rune]cellKey),
@@ -204,6 +205,7 @@ func (m *model) loadCSV(records [][]string) error {
 	m.markJumpPending = false
 	m.markJumpExact = false
 	m.selectRows = false
+	m.colWidths = make(map[int]int)
 	m.hasCopyBuffer = false
 	m.selectedRow = 0
 	m.selectedCol = 0
@@ -444,6 +446,7 @@ func (m *model) redoLastOperation() {
 func (m model) snapshotUndoState() undoState {
 	return undoState{
 		cells:       cloneCells(m.cells),
+		colWidths:   cloneColWidths(m.colWidths),
 		rowCount:    m.rowCount,
 		selectedRow: m.selectedRow,
 		selectedCol: m.selectedCol,
@@ -457,6 +460,7 @@ func (m model) snapshotUndoState() undoState {
 
 func (m *model) restoreUndoState(state undoState) {
 	m.cells = cloneCells(state.cells)
+	m.colWidths = cloneColWidths(state.colWidths)
 	m.rowCount = max(1, state.rowCount)
 	m.syncRowLabelWidth()
 	m.selectedRow = state.selectedRow
@@ -490,5 +494,11 @@ func (m *model) syncRowLabelWidth() {
 func cloneCells(cells map[cellKey]string) map[cellKey]string {
 	cloned := make(map[cellKey]string, len(cells))
 	maps.Copy(cloned, cells)
+	return cloned
+}
+
+func cloneColWidths(widths map[int]int) map[int]int {
+	cloned := make(map[int]int, len(widths))
+	maps.Copy(cloned, widths)
 	return cloned
 }

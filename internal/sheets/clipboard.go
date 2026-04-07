@@ -288,6 +288,7 @@ func (m *model) insertColAt(insertCol int) {
 	m.pushUndoState()
 
 	shifted := make(map[cellKey]string, len(m.cells))
+	shiftedWidths := make(map[int]int, len(m.colWidths))
 	for key, value := range m.cells {
 		newValue := rewriteFormulaForColInsert(value, insertCol)
 		if key.col < insertCol {
@@ -300,8 +301,20 @@ func (m *model) insertColAt(insertCol int) {
 		}
 		shifted[cellKey{row: key.row, col: newCol}] = newValue
 	}
+	for col, width := range m.colWidths {
+		if col < insertCol {
+			shiftedWidths[col] = width
+			continue
+		}
+		newCol := col + 1
+		if newCol >= totalCols {
+			continue
+		}
+		shiftedWidths[newCol] = width
+	}
 
 	m.cells = shifted
+	m.colWidths = shiftedWidths
 }
 
 func (m *model) insertRowAt(insertRow int) {

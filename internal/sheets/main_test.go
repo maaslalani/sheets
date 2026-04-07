@@ -1653,6 +1653,55 @@ func TestCommandPromptUnknownCommandShowsMessage(t *testing.T) {
 	}
 }
 
+func TestCommandPromptFitSizesSelectedColumnToContent(t *testing.T) {
+	m := newModel()
+	m.mode = normalMode
+	m.selectedCol = 1
+	m.setCellValue(0, 1, "short")
+	m.setCellValue(1, 1, "much longer value")
+
+	pending := startCommand(t, m, "fit")
+	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if got.commandError {
+		t.Fatalf("expected fit to succeed, got %q", got.commandMessage)
+	}
+	if got.commandMessage != "fit column B" {
+		t.Fatalf("expected fit success message, got %q", got.commandMessage)
+	}
+	if got.columnWidth(1) != len("much longer value") {
+		t.Fatalf("expected fitted width %d, got %d", len("much longer value"), got.columnWidth(1))
+	}
+	if got.columnWidth(0) != got.cellWidth {
+		t.Fatalf("expected untouched column to keep default width %d, got %d", got.cellWidth, got.columnWidth(0))
+	}
+}
+
+func TestCommandPromptFitWidthFillsVisibleScreenWidth(t *testing.T) {
+	m := newModel()
+	m.mode = normalMode
+	m.width = 80
+	m.height = 24
+	visible := m.visibleCols()
+
+	pending := startCommand(t, m, "fit width")
+	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if got.commandError {
+		t.Fatalf("expected fit width to succeed, got %q", got.commandMessage)
+	}
+	if got.commandMessage != "fit visible columns to screen" {
+		t.Fatalf("expected fit width success message, got %q", got.commandMessage)
+	}
+	used := 0
+	for col := 0; col < visible; col++ {
+		used += got.columnWidth(col) + 1
+	}
+	if used != got.availableColumnWidth() {
+		t.Fatalf("expected fitted columns to use %d cells, got %d", got.availableColumnWidth(), used)
+	}
+}
+
 func TestCommandModeUsesPlainStatusStyle(t *testing.T) {
 	m := newModel()
 	m.mode = commandMode
@@ -3022,5 +3071,26 @@ func TestCellFromMouseMapping(t *testing.T) {
 	_, _, ok = m.cellFromMouse(borderX, 2)
 	if ok {
 		t.Fatal("expected click on column border to return false")
+	}
+}
+
+func TestCellFromMouseMappingWithCustomColumnWidths(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.setColumnWidth(0, 5)
+	m.setColumnWidth(1, 20)
+
+	x := m.rowLabelWidth + 2 + (m.columnWidth(0) + 1) + 7
+	y := 2
+	row, col, ok := m.cellFromMouse(x, y)
+	if !ok || row != 0 || col != 1 {
+		t.Fatalf("expected (0,1,true), got (%d,%d,%v)", row, col, ok)
+	}
+
+	borderX := m.rowLabelWidth + 2 + m.columnWidth(0)
+	_, _, ok = m.cellFromMouse(borderX, y)
+	if ok {
+		t.Fatal("expected click on custom-width column border to return false")
 	}
 }

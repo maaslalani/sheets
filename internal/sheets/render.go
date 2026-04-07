@@ -145,7 +145,7 @@ func (m model) renderColumnHeaders() string {
 
 	for i := 0; i < m.visibleCols(); i++ {
 		col := m.colOffset + i
-		label := alignCenter(columnLabel(col), m.cellWidth)
+		label := alignCenter(columnLabel(col), m.columnWidth(col))
 		if m.mode == selectMode && m.selectionContains(m.selectedRow, col) {
 			b.WriteString(m.activeHeaderStyle.Render(label))
 		} else if col == m.selectedCol {
@@ -190,9 +190,9 @@ func (m model) renderBorderLine(borderRow int, left, middle, right string, visib
 	b.WriteString(" ")
 	b.WriteString(m.renderBorderJunction(borderRow, m.colOffset, left))
 
-	segment := strings.Repeat("─", m.cellWidth)
 	for i := range visibleCols {
 		col := m.colOffset + i
+		segment := strings.Repeat("─", m.columnWidth(col))
 		b.WriteString(m.renderBorderSegment(borderRow, col, segment))
 		if i == visibleCols-1 {
 			b.WriteString(m.renderBorderJunction(borderRow, col+1, right))
@@ -221,7 +221,7 @@ func (m model) renderContentLine(row, visibleCols int) string {
 
 	for i := range visibleCols {
 		col := m.colOffset + i
-		cell := fit(m.displayValue(row, col), m.cellWidth)
+		cell := fit(m.displayValue(row, col), m.columnWidth(col))
 		formula := m.isFormulaDisplayCell(row, col)
 		formulaError := formula && m.isFormulaErrorDisplayCell(row, col)
 		raw := m.cellValue(row, col)
