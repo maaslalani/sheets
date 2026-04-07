@@ -132,6 +132,7 @@ type model struct {
 	markJumpPending bool
 	markJumpExact   bool
 	commandError    bool
+	dirtyFile       bool
 
 	selectedRow int
 	selectedCol int

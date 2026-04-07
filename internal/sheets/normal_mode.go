@@ -58,6 +58,11 @@ func (m model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyRunes:
 		switch string(msg.Runes) {
 		case "q":
+			if m.dirtyFile {
+				m.commandMessage = "No write since last change (add ! to override)"
+				m.commandError = true
+				return m, nil
+			}
 			return m, tea.Quit
 		case ":":
 			m.clearNormalPrefixes()

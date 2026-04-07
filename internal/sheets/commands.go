@@ -109,8 +109,14 @@ func (m *model) executePrompt() tea.Cmd {
 	name, arg := splitCommandArgument(command)
 	switch {
 	case strings.EqualFold(command, "q"),
-		strings.EqualFold(command, "q!"),
-		strings.EqualFold(command, "quit"),
+		strings.EqualFold(command, "quit"):
+		if m.dirtyFile {
+			m.commandMessage = "No write since last change (add ! to override)"
+			m.commandError = true
+			return nil
+		}
+		return tea.Quit
+	case strings.EqualFold(command, "q!"),
 		strings.EqualFold(command, "quit!"),
 		strings.EqualFold(command, "exit"),
 		strings.EqualFold(command, "exit!"):
@@ -166,6 +172,7 @@ func (m *model) executePrompt() tea.Cmd {
 		m.currentFilePath = arg
 		m.commandMessage = fmt.Sprintf("wrote %s", arg)
 		m.commandError = false
+		m.dirtyFile = false
 		return nil
 	}
 

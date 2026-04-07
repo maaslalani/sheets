@@ -217,6 +217,7 @@ func (m *model) loadCSV(records [][]string) error {
 	m.insertKeys = nil
 	m.recordingInsert = false
 	m.replayingChange = false
+	m.dirtyFile = false
 
 	for row := 0; row < len(records) && row < maxRows; row++ {
 		record := records[row]
@@ -417,6 +418,7 @@ func isEscapeKey(msg tea.KeyMsg) bool {
 func (m *model) pushUndoState() {
 	m.undoStack = append(m.undoStack, m.snapshotUndoState())
 	m.redoStack = nil
+	m.dirtyFile = true
 }
 
 func (m *model) undoLastOperation() {
