@@ -141,6 +141,10 @@ func newModel() model {
 }
 
 func (m *model) loadCSVFile(path string) error {
+	if isMarkdownPath(path) {
+		return m.loadMarkdownFile(path)
+	}
+
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -269,6 +273,10 @@ func (m model) writeCSV(writer *csv.Writer) error {
 }
 
 func (m model) writeCSVFile(path string) error {
+	if isMarkdownPath(path) {
+		return m.writeMarkdownFile(path)
+	}
+
 	file, err := os.Create(path)
 	if err != nil {
 		return err
