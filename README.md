@@ -53,6 +53,7 @@ Modify a cell:
 * <kbd>gg</kbd>, <kbd>G</kbd>, <kbd>5G</kbd>, <kbd>gB9</kbd>: Jump to the top, bottom, a row number, or a specific cell
 * <kbd>0</kbd>, <kbd>^</kbd>, <kbd>$</kbd>: Jump to the first column, first non-empty column, or last non-empty column in the row
 * <kbd>H</kbd>, <kbd>M</kbd>, <kbd>L</kbd>: Jump to the top, middle, or bottom visible row
+* <kbd>enter</kbd>: Open a viewer for the current cell when its contents are too long to fit inline
 * <kbd>ctrl+u</kbd>, <kbd>ctrl+d</kbd>: Move half a page up or down
 * <kbd>zt</kbd>, <kbd>zz</kbd>, <kbd>zb</kbd>,: Align the current row to the top, middle, or bottom of the window
 * <kbd>/</kbd>, <kbd>?</kbd>: Search forward or backward
@@ -86,8 +87,12 @@ Press <kbd>:</kbd> to open the command prompt, then use commands such as:
 - <kbd>:w</kbd> to save
 - <kbd>:w</kbd> <code>path.csv</code> to save to a new file
 - <kbd>:e</kbd> <code>path.csv</code> to open another CSV
+- <kbd>:width</kbd> <code>24</code> to set the current column width
+- <kbd>:width</kbd> <code>auto</code> to reset the current column to auto-fit
 - <kbd>:q</kbd> or <kbd>:wq</kbd> to quit
 - <kbd>:goto B9</kbd> or <kbd>:B9</kbd> to jump to a cell
+
+If a long cell contains markdown, the viewer renders it as formatted markdown instead of plain text.
 
 ## Installation
 

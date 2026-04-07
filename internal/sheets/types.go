@@ -3,6 +3,7 @@ package sheets
 import (
 	"errors"
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -25,6 +26,11 @@ const (
 type cellKey struct {
 	row int
 	col int
+}
+
+type visibleColumn struct {
+	col   int
+	width int
 }
 
 type clipboard struct {
@@ -142,8 +148,9 @@ type model struct {
 	rowOffset   int
 	colOffset   int
 
-	cellWidth     int
-	rowLabelWidth int
+	cellWidth          int
+	rowLabelWidth      int
+	manualColumnWidths map[int]int
 
 	cells           map[cellKey]string
 	copyBuffer      clipboard
@@ -157,6 +164,15 @@ type model struct {
 	editingValue    string
 	editingCursor   int
 	editCursor      cursor.Model
+	viewer          viewport.Model
+	viewerOpen      bool
+	viewerTitle     string
+	viewerCell      cellKey
+	viewerContent   string
+	viewerRendered  string
+	viewerWidth     int
+	viewerMarkdown  bool
+	viewerEditDirty bool
 	insertKeys      []tea.KeyMsg
 	recordingInsert bool
 	lastChange      []tea.KeyMsg
@@ -190,4 +206,6 @@ type model struct {
 	statusSelectStyle             lipgloss.Style
 	commandLineStyle              lipgloss.Style
 	commandErrorStyle             lipgloss.Style
+	viewerStyle                   lipgloss.Style
+	viewerTitleStyle              lipgloss.Style
 }

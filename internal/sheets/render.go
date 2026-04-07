@@ -1,11 +1,19 @@
 package sheets
 
 import (
+	"fmt"
+	"net/url"
+	"regexp"
+
+	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
 	"strconv"
 	"strings"
 )
+
+var urlEncodedPattern = regexp.MustCompile(`%[0-9A-Fa-f]{2}`)
 
 func (m model) View() string {
 	if m.width == 0 || m.height == 0 {
@@ -38,7 +46,11 @@ func (m model) View() string {
 		parts = append(parts, commandLine)
 	}
 	parts = append(parts, bottomBar)
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	view := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	if m.viewerOpen {
+		return m.renderViewer(view)
+	}
+	return view
 }
 
 func (m model) renderStatusSpacer(contentHeight int) string {
@@ -120,6 +132,9 @@ func (m model) renderCommandPromptLine(width int) string {
 }
 
 func (m model) statusTitle() string {
+	if m.mode == commandMode {
+		return ""
+	}
 	if prefix := m.pendingStatusPrefix(); prefix != "" {
 		return prefix
 	}
@@ -143,18 +158,18 @@ func (m model) renderColumnHeaders() string {
 	var b strings.Builder
 	b.WriteString(strings.Repeat(" ", m.rowLabelWidth+2))
 
-	for i := 0; i < m.visibleCols(); i++ {
-		col := m.colOffset + i
-		label := alignCenter(columnLabel(col), m.cellWidth)
-		if m.mode == selectMode && m.selectionContains(m.selectedRow, col) {
+	visibleCols := m.visibleColumns()
+	for i, column := range visibleCols {
+		label := alignCenter(columnLabel(column.col), column.width)
+		if m.mode == selectMode && m.selectionContains(m.selectedRow, column.col) {
 			b.WriteString(m.activeHeaderStyle.Render(label))
-		} else if col == m.selectedCol {
+		} else if column.col == m.selectedCol {
 			b.WriteString(m.activeHeaderStyle.Render(label))
 		} else {
 			b.WriteString(m.headerStyle.Render(label))
 		}
 
-		if i < m.visibleCols()-1 {
+		if i < len(visibleCols)-1 {
 			b.WriteString(" ")
 		}
 	}
@@ -164,14 +179,14 @@ func (m model) renderColumnHeaders() string {
 
 func (m model) renderGrid() string {
 	visibleRows := m.visibleRows()
-	visibleCols := m.visibleCols()
+	visibleCols := m.visibleColumns()
 
 	lines := make([]string, 0, 1+visibleRows*2)
 	lines = append(lines, m.renderBorderLine(m.rowOffset, "┌", "┬", "┐", visibleCols))
 
 	for i := range visibleRows {
 		row := m.rowOffset + i
-		lines = append(lines, m.renderContentLine(row, visibleCols))
+		lines = append(lines, m.renderContentLineVisible(row, visibleCols))
 
 		left, middle, right := "├", "┼", "┤"
 		if i == visibleRows-1 {
@@ -184,28 +199,31 @@ func (m model) renderGrid() string {
 	return strings.Join(lines, "\n")
 }
 
-func (m model) renderBorderLine(borderRow int, left, middle, right string, visibleCols int) string {
+func (m model) renderBorderLine(borderRow int, left, middle, right string, visibleCols []visibleColumn) string {
 	var b strings.Builder
 	b.WriteString(strings.Repeat(" ", m.rowLabelWidth))
 	b.WriteString(" ")
 	b.WriteString(m.renderBorderJunction(borderRow, m.colOffset, left))
 
-	segment := strings.Repeat("─", m.cellWidth)
-	for i := range visibleCols {
-		col := m.colOffset + i
-		b.WriteString(m.renderBorderSegment(borderRow, col, segment))
-		if i == visibleCols-1 {
-			b.WriteString(m.renderBorderJunction(borderRow, col+1, right))
+	for i, column := range visibleCols {
+		segment := strings.Repeat("─", column.width)
+		b.WriteString(m.renderBorderSegment(borderRow, column.col, segment))
+		if i == len(visibleCols)-1 {
+			b.WriteString(m.renderBorderJunction(borderRow, column.col+1, right))
 			continue
 		}
 
-		b.WriteString(m.renderBorderJunction(borderRow, col+1, middle))
+		b.WriteString(m.renderBorderJunction(borderRow, column.col+1, middle))
 	}
 
 	return b.String()
 }
 
 func (m model) renderContentLine(row, visibleCols int) string {
+	return m.renderContentLineVisible(row, m.renderColumns(visibleCols))
+}
+
+func (m model) renderContentLineVisible(row int, visibleCols []visibleColumn) string {
 	var b strings.Builder
 	label := fitLeft(strconv.Itoa(row+1), m.rowLabelWidth)
 	if m.mode == selectMode && m.selectionContains(row, m.selectedCol) {
@@ -219,18 +237,17 @@ func (m model) renderContentLine(row, visibleCols int) string {
 	b.WriteString(" ")
 	b.WriteString(m.renderVerticalBorder(row, m.colOffset))
 
-	for i := range visibleCols {
-		col := m.colOffset + i
-		cell := fit(m.displayValue(row, col), m.cellWidth)
-		formula := m.isFormulaDisplayCell(row, col)
-		formulaError := formula && m.isFormulaErrorDisplayCell(row, col)
-		raw := m.cellValue(row, col)
+	for _, column := range visibleCols {
+		cell := fit(m.displayValue(row, column.col), column.width)
+		formula := m.isFormulaDisplayCell(row, column.col)
+		formulaError := formula && m.isFormulaErrorDisplayCell(row, column.col)
+		raw := m.cellValue(row, column.col)
 		_, fmtBold, fmtUnderline, fmtItalic := parseCellFormatting(raw)
 		hasFormatting := fmtBold || fmtUnderline || fmtItalic
-		if row == m.selectedRow && col == m.selectedCol && m.mode == insertMode {
+		if row == m.selectedRow && column.col == m.selectedCol && m.mode == insertMode {
 			b.WriteString(m.renderEditingCell())
 		} else {
-			style, styled := m.cellBaseStyle(row, col, formula, formulaError)
+			style, styled := m.cellBaseStyle(row, column.col, formula, formulaError)
 			if hasFormatting {
 				style = applyTextFormatting(style, fmtBold, fmtUnderline, fmtItalic)
 				b.WriteString(style.Render(cell))
@@ -241,10 +258,46 @@ func (m model) renderContentLine(row, visibleCols int) string {
 			}
 		}
 
-		b.WriteString(m.renderVerticalBorder(row, col+1))
+		b.WriteString(m.renderVerticalBorder(row, column.col+1))
 	}
 
 	return b.String()
+}
+
+func (m model) renderViewer(base string) string {
+	modalWidth, modalHeight := m.viewerDimensions()
+	title := m.viewerTitleStyle.Render(m.viewerTitle)
+	help := m.commandLineStyle.Render("Esc/q/Enter close  h/j/k/l move  PgUp/PgDn scroll")
+	if m.mode == insertMode {
+		help = m.commandLineStyle.Render("Esc preview  type to edit")
+	}
+	header := title
+	if help != "" {
+		if lipgloss.Width(title)+lipgloss.Width(help)+1 <= modalWidth-4 {
+			header = lipgloss.JoinHorizontal(lipgloss.Top, title, strings.Repeat(" ", max(0, modalWidth-lipgloss.Width(title)-lipgloss.Width(help)-4)), help)
+		} else {
+			header = lipgloss.JoinVertical(lipgloss.Left, title, help)
+		}
+	}
+	contentView := m.viewer.View()
+	if m.mode == insertMode {
+		contentView = renderViewerTextInput(m.editingValue, m.editingCursor, m.viewer.Width, m.editCursor, lipgloss.NewStyle())
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left, header, contentView)
+	modal := m.viewerStyle.Width(modalWidth).Height(modalHeight).Render(content)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
+}
+
+func (m model) viewerDimensions() (width, height int) {
+	width = clamp(m.width*3/4, 40, max(40, m.width-4))
+	height = clamp(m.height*3/4, 8, max(8, m.height-4))
+	if m.width < 44 {
+		width = max(10, m.width-2)
+	}
+	if m.height < 12 {
+		height = max(4, m.height-2)
+	}
+	return width, height
 }
 
 func (m model) cellBaseStyle(row, col int, formula, formulaError bool) (lipgloss.Style, bool) {
@@ -466,6 +519,229 @@ func (m model) displayValue(row, col int) string {
 	}
 
 	return value
+}
+
+func (m model) visibleColumns() []visibleColumn {
+	available := m.availableColumnWidth()
+	if available <= 0 {
+		return []visibleColumn{{col: m.colOffset, width: 1}}
+	}
+
+	visible := make([]visibleColumn, 0, totalCols-m.colOffset)
+	used := 0
+	for col := m.colOffset; col < totalCols; col++ {
+		width := m.columnWidth(col)
+		needed := width + 1
+		if used+needed > available && len(visible) > 0 {
+			break
+		}
+		visible = append(visible, visibleColumn{col: col, width: width})
+		used += needed
+	}
+
+	if len(visible) == 0 {
+		visible = append(visible, visibleColumn{col: m.colOffset, width: 1})
+	}
+
+	return visible
+}
+
+func (m model) renderColumns(count int) []visibleColumn {
+	if count <= 0 {
+		return nil
+	}
+
+	columns := make([]visibleColumn, 0, count)
+	for i := 0; i < count && m.colOffset+i < totalCols; i++ {
+		col := m.colOffset + i
+		columns = append(columns, visibleColumn{col: col, width: m.columnWidth(col)})
+	}
+	return columns
+}
+
+func (m model) visibleCols() int {
+	return len(m.visibleColumns())
+}
+
+func (m model) availableColumnWidth() int {
+	return max(0, m.width-m.rowLabelWidth-2)
+}
+
+func (m model) maxColumnWidth() int {
+	if m.width <= 0 {
+		return 1024
+	}
+	return max(1, m.availableColumnWidth()-1)
+}
+
+func (m model) minColumnWidth(col int) int {
+	return max(m.cellWidth, runewidth.StringWidth(columnLabel(col)))
+}
+
+func (m model) columnWidth(col int) int {
+	minWidth := m.minColumnWidth(col)
+	maxWidth := max(minWidth, m.maxColumnWidth())
+	if width, ok := m.manualColumnWidths[col]; ok {
+		return clamp(width, minWidth, maxWidth)
+	}
+
+	width := minWidth
+	for key := range m.cells {
+		if key.col != col {
+			continue
+		}
+		width = max(width, runewidth.StringWidth(m.displayValue(key.row, col)))
+		if width >= maxWidth {
+			return maxWidth
+		}
+	}
+	if col == m.selectedCol && m.mode == insertMode {
+		width = max(width, runewidth.StringWidth(m.editingValue))
+	}
+
+	return min(width, maxWidth)
+}
+
+func wrapText(value string, width int) []string {
+	if width <= 0 {
+		return nil
+	}
+
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	rawLines := strings.Split(value, "\n")
+	wrapped := make([]string, 0, len(rawLines))
+	for _, line := range rawLines {
+		line = strings.ReplaceAll(line, "\t", "    ")
+		if line == "" {
+			wrapped = append(wrapped, "")
+			continue
+		}
+		for runewidth.StringWidth(line) > width {
+			segment := runewidth.Truncate(line, width, "")
+			if segment == "" {
+				break
+			}
+			wrapped = append(wrapped, segment)
+			line = strings.TrimPrefix(line, segment)
+		}
+		wrapped = append(wrapped, line)
+	}
+
+	return wrapped
+}
+
+func renderCellViewerContent(value string, width int, markdown bool) string {
+	if width <= 0 {
+		return ""
+	}
+	value = viewerPreviewValue(value)
+	if markdown {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err == nil {
+			rendered, err := renderer.Render(strings.TrimSpace(value))
+			if err == nil {
+				return strings.TrimRight(rendered, "\n")
+			}
+		}
+	}
+
+	return strings.Join(wrapText(value, width), "\n")
+}
+
+func viewerPreviewValue(value string) string {
+	if !urlEncodedPattern.MatchString(value) {
+		return value
+	}
+	decoded, err := url.QueryUnescape(value)
+	if err != nil || decoded == "" {
+		return value
+	}
+	return decoded
+}
+
+func looksLikeMarkdown(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	lines := strings.Split(trimmed, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(line, "#"),
+			strings.HasPrefix(line, "- "),
+			strings.HasPrefix(line, "* "),
+			strings.HasPrefix(line, "> "),
+			strings.HasPrefix(line, "```"),
+			strings.HasPrefix(line, "1. "),
+			strings.Contains(line, "**"),
+			strings.Contains(line, "*"),
+			strings.Contains(line, "[") && strings.Contains(line, "]("):
+			return true
+		}
+	}
+	return false
+}
+
+func longCellContent(value string, width int) bool {
+	if strings.Contains(value, "\n") {
+		return true
+	}
+	return runewidth.StringWidth(strings.ReplaceAll(value, "\n", " ")) > width
+}
+
+func viewerTitleForCell(row, col int) string {
+	return fmt.Sprintf("Cell %s", cellRef(row, col))
+}
+
+func renderViewerTextInput(value string, cursorPos, width int, cursorModel cursor.Model, textStyle lipgloss.Style) string {
+	if width <= 0 {
+		return ""
+	}
+	runes := rawTextInputValue(value)
+	pos := clamp(cursorPos, 0, len(runes))
+	cursorModel.TextStyle = textStyle
+
+	var b strings.Builder
+	lineWidth := 0
+	writeCursor := func(char string) {
+		cursorModel.SetChar(char)
+		b.WriteString(cursorModel.View())
+		lineWidth += max(1, runewidth.StringWidth(char))
+	}
+	for i := 0; i <= len(runes); i++ {
+		if i == pos {
+			if i < len(runes) && runes[i] != '\n' {
+				writeCursor(string(runes[i]))
+				i++
+			} else {
+				writeCursor(" ")
+			}
+		}
+		if i >= len(runes) {
+			break
+		}
+		if runes[i] == '\n' {
+			b.WriteByte('\n')
+			lineWidth = 0
+			continue
+		}
+		rw := runewidth.RuneWidth(runes[i])
+		if lineWidth+rw > width {
+			b.WriteByte('\n')
+			lineWidth = 0
+		}
+		b.WriteString(textStyle.Render(string(runes[i])))
+		lineWidth += rw
+	}
+	return b.String()
 }
 
 func alignCenter(value string, width int) string {

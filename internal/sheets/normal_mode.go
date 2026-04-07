@@ -21,6 +21,11 @@ func (m model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.moveSelection(0, -count)
 		m.clearCount()
 		m.clearRegisterState()
+	case tea.KeyEnter:
+		if m.openViewerForCurrentCell() {
+			m.clearCount()
+			m.clearRegisterState()
+		}
 	case tea.KeyDown:
 		m.moveSelection(count, 0)
 		m.clearCount()

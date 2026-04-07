@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -131,7 +132,7 @@ func (m *model) executePrompt() tea.Cmd {
 		return tea.Quit
 	case strings.EqualFold(command, "help"),
 		strings.EqualFold(command, "?"):
-		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path]"
+		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path], width <n|auto>"
 		m.commandError = false
 		return nil
 	}
@@ -195,8 +196,42 @@ func (m *model) executePrompt() tea.Cmd {
 		return nil
 	}
 
+	if strings.EqualFold(name, "width") {
+		return m.executeWidthCommand(arg)
+	}
+
 	m.commandMessage = fmt.Sprintf("no such command: '%s'", command)
 	m.commandError = true
+	return nil
+}
+
+func (m *model) executeWidthCommand(arg string) tea.Cmd {
+	arg = strings.TrimSpace(arg)
+	col := m.selectedCol
+	if arg == "" {
+		m.commandMessage = fmt.Sprintf("%s width %d", columnLabel(col), m.columnWidth(col))
+		m.commandError = false
+		return nil
+	}
+	if strings.EqualFold(arg, "auto") {
+		delete(m.manualColumnWidths, col)
+		m.ensureVisible()
+		m.commandMessage = fmt.Sprintf("%s width auto", columnLabel(col))
+		m.commandError = false
+		return nil
+	}
+
+	width, err := strconv.Atoi(arg)
+	if err != nil || width <= 0 {
+		m.commandMessage = fmt.Sprintf("invalid width: '%s'", arg)
+		m.commandError = true
+		return nil
+	}
+
+	m.manualColumnWidths[col] = width
+	m.ensureVisible()
+	m.commandMessage = fmt.Sprintf("%s width %d", columnLabel(col), m.columnWidth(col))
+	m.commandError = false
 	return nil
 }
 
