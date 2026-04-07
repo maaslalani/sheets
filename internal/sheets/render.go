@@ -266,6 +266,10 @@ func (m model) renderContentLineVisible(row int, visibleCols []visibleColumn) st
 
 func (m model) renderViewer(base string) string {
 	modalWidth, modalHeight := m.viewerDimensions()
+	innerWidth := max(1, modalWidth-4)
+	stackContext := m.viewerStacksContext(modalWidth)
+	contextWidth := m.viewerContextWidth(innerWidth)
+	contentWidth := max(1, m.viewerContentWidth(modalWidth))
 	title := m.viewerTitleStyle.Render(m.viewerTitle)
 	help := m.commandLineStyle.Render("Esc/q/Enter close  h/j/k/l move  PgUp/PgDn scroll")
 	if m.mode == insertMode {
@@ -283,7 +287,12 @@ func (m model) renderViewer(base string) string {
 	if m.mode == insertMode {
 		contentView = renderViewerTextInput(m.editingValue, m.editingCursor, m.viewer.Width, m.editCursor, lipgloss.NewStyle())
 	}
-	content := lipgloss.JoinVertical(lipgloss.Left, header, contentView)
+	contextView := m.renderViewerContext(contextWidth)
+	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(contentWidth).Render(contentView), lipgloss.NewStyle().Width(contextWidth).Render(contextView))
+	if stackContext {
+		body = lipgloss.JoinVertical(lipgloss.Left, lipgloss.NewStyle().Width(contentWidth).Render(contentView), lipgloss.NewStyle().Width(contextWidth).Render(contextView))
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left, header, body)
 	modal := m.viewerStyle.Width(modalWidth).Height(modalHeight).Render(content)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
@@ -298,6 +307,85 @@ func (m model) viewerDimensions() (width, height int) {
 		height = max(4, m.height-2)
 	}
 	return width, height
+}
+
+func (m model) viewerContentWidth(modalWidth int) int {
+	innerWidth := max(1, modalWidth-4)
+	if m.viewerStacksContext(modalWidth) {
+		return innerWidth
+	}
+	return max(1, innerWidth-m.viewerContextWidth(innerWidth)-1)
+}
+
+func (m model) viewerContextWidth(innerWidth int) int {
+	if innerWidth < 24 {
+		return innerWidth
+	}
+	if innerWidth < 48 {
+		return min(18, max(12, innerWidth/3))
+	}
+	return min(26, max(18, innerWidth/4))
+}
+
+func (m model) viewerStacksContext(modalWidth int) bool {
+	return modalWidth < 56
+}
+
+func (m model) renderViewerContext(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	parts := []string{
+		m.renderViewerPositionSummary(width),
+		m.renderViewerNeighborGrid(width),
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+}
+
+func (m model) renderViewerPositionSummary(width int) string {
+	rowSummary := fit(fmt.Sprintf("Row %d/%d", m.selectedRow+1, m.rowCount), width)
+	colSummary := fit(fmt.Sprintf("Col %s/%s", columnLabel(m.selectedCol), columnLabel(totalCols-1)), width)
+	windowSummary := fit(fmt.Sprintf("View %s-%s", columnLabel(m.colOffset), columnLabel(m.visibleColumns()[len(m.visibleColumns())-1].col)), width)
+	return lipgloss.JoinVertical(lipgloss.Left, rowSummary, colSummary, windowSummary, fit("Nearby", width))
+}
+
+func (m model) renderViewerNeighborGrid(width int) string {
+	cols := viewerContextWindow(m.selectedCol, totalCols)
+	rows := viewerContextWindow(m.selectedRow, m.rowCount)
+	cellWidth := max(4, (width-4)/3)
+	var lines []string
+	header := strings.Repeat(" ", 3)
+	for _, col := range cols {
+		header += " " + fit(columnLabel(col), cellWidth)
+	}
+	lines = append(lines, header)
+	for _, row := range rows {
+		line := fitLeft(strconv.Itoa(row+1), 3)
+		for _, col := range cols {
+			cell := fit(m.displayValue(row, col), cellWidth)
+			if row == m.selectedRow && col == m.selectedCol {
+				cell = m.activeCellStyle.Render(cell)
+			}
+			line += " " + cell
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func viewerContextWindow(center, limit int) []int {
+	if limit <= 0 {
+		return nil
+	}
+	if limit <= 3 {
+		window := make([]int, limit)
+		for i := 0; i < limit; i++ {
+			window[i] = i
+		}
+		return window
+	}
+	start := clamp(center-1, 0, limit-3)
+	return []int{start, start + 1, start + 2}
 }
 
 func (m model) cellBaseStyle(row, col int, formula, formulaError bool) (lipgloss.Style, bool) {

@@ -442,7 +442,7 @@ func (m *model) openViewerForCurrentCell() bool {
 
 func (m *model) refreshViewer() {
 	modalWidth, modalHeight := m.viewerDimensions()
-	contentWidth := max(1, modalWidth-4)
+	contentWidth := max(1, m.viewerContentWidth(modalWidth))
 	contentHeight := max(1, modalHeight-4)
 	previewValue := viewerPreviewValue(m.activeValue())
 	markdown := m.mode != insertMode && looksLikeMarkdown(previewValue)

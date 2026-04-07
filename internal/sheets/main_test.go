@@ -657,6 +657,21 @@ func TestViewerNavigationUpdatesFocusedCellAndContent(t *testing.T) {
 	assertContainsAll(t, "viewer after nav", moved.View(), "Cell B1", "second")
 }
 
+func TestViewerShowsNearbyContextGrid(t *testing.T) {
+	m := newModel()
+	m.width = 16
+	m.height = 24
+	m.selectedRow = 1
+	m.selectedCol = 1
+	m.setCellValue(0, 0, "nw")
+	m.setCellValue(1, 1, "center long value for viewer")
+	m.setCellValue(2, 2, "se")
+
+	opened := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	view := opened.View()
+	assertContainsAll(t, "viewer context", view, "Row 2/999", "Col B/AZ", "A", "B", "C", "nw", "se")
+}
+
 func TestViewerInsertModeUpdatesCellLiveWithPlainText(t *testing.T) {
 	m := newModel()
 	m.width = 16
