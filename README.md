@@ -91,28 +91,28 @@ Press <kbd>:</kbd> to open the command prompt, then use commands such as:
 
 ## Installation
 
-<!--
+### Go:
+
+```sh
+go install github.com/maaslalani/sheets@main
+```
 
 Use a package manager:
 
-```bash
-# macOS
-brew install sheets
+### Homebrew
 
+```bash
+brew install sheets
+```
+
+<!--
 # Arch
 yay -S sheets
 
 # Nix
 nix-env -iA nixpkgs.sheets
 ```
-
 -->
-
-Install with Go:
-
-```sh
-go install github.com/maaslalani/sheets@main
-```
 
 Or download a binary from the [releases](https://github.com/maaslalani/sheets/releases).
 
