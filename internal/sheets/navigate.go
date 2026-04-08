@@ -97,12 +97,11 @@ func (m *model) ensureVisible() {
 		m.rowOffset = m.selectedRow - visibleRows + 1
 	}
 
-	visibleCols := m.visibleCols()
 	if m.selectedCol < m.colOffset {
 		m.colOffset = m.selectedCol
 	}
-	if m.selectedCol >= m.colOffset+visibleCols {
-		m.colOffset = m.selectedCol - visibleCols + 1
+	for m.lastVisibleCol() < m.selectedCol && m.colOffset < m.selectedCol {
+		m.colOffset++
 	}
 }
 
@@ -130,17 +129,44 @@ func (m model) halfPageRows() int {
 }
 
 func (m model) visibleCols() int {
-	available := m.width - m.rowLabelWidth - 2
-	if available <= m.cellWidth+1 {
+	available := m.availableColumnWidth()
+	if available <= 0 || m.colOffset >= totalCols {
 		return 1
 	}
 
-	cols := available / (m.cellWidth + 1)
-	if cols < 1 {
+	used := 0
+	visible := 0
+	for col := m.colOffset; col < totalCols; col++ {
+		width := m.columnWidth(col) + 1
+		if visible > 0 && used+width > available {
+			break
+		}
+		visible++
+		used += width
+		if used >= available {
+			break
+		}
+	}
+	if visible < 1 {
 		return 1
 	}
 
-	return min(cols, totalCols-m.colOffset)
+	return visible
+}
+
+func (m model) availableColumnWidth() int {
+	return max(0, m.width-m.rowLabelWidth-2)
+}
+
+func (m model) columnWidth(col int) int {
+	if width, ok := m.colWidths[col]; ok {
+		return max(minCellWidth, width)
+	}
+	return max(minCellWidth, m.cellWidth)
+}
+
+func (m model) lastVisibleCol() int {
+	return min(totalCols-1, m.colOffset+m.visibleCols()-1)
 }
 
 func (m model) firstNonBlankColumn(row int) int {
@@ -217,12 +243,21 @@ func (m model) cellFromMouse(x, y int) (row, col int, ok bool) {
 		return 0, 0, false
 	}
 
-	stride := m.cellWidth + 1
-	visibleColIndex := (x - cellAreaStart) / stride
-	offsetInStride := (x - cellAreaStart) % stride
-	if offsetInStride >= m.cellWidth || visibleColIndex >= m.visibleCols() {
-		return 0, 0, false
+	remaining := x - cellAreaStart
+	for visibleColIndex := 0; visibleColIndex < m.visibleCols(); visibleColIndex++ {
+		col = m.colOffset + visibleColIndex
+		width := m.columnWidth(col)
+		if remaining < width {
+			return m.rowOffset + visibleRowIndex, col, true
+		}
+		if remaining == width {
+			return 0, 0, false
+		}
+		remaining -= width + 1
+		if remaining < 0 {
+			return 0, 0, false
+		}
 	}
 
-	return m.rowOffset + visibleRowIndex, m.colOffset + visibleColIndex, true
+	return 0, 0, false
 }
