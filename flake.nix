@@ -42,7 +42,7 @@
 
         apps.default = {
           type = "app";
-          program = "${self.packages.${system}.sheets}/bin/sheets";
+          program = "${self.packages.${system}.default}/bin/sheets";
         };
       });
 }
