@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-runewidth"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -126,7 +127,7 @@ func (m *model) executePrompt() tea.Cmd {
 		return tea.Quit
 	case strings.EqualFold(command, "help"),
 		strings.EqualFold(command, "?"):
-		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, fit, fit width, e[dit] <path>, w[rite] [path]"
+		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, resize <n|auto|content|width>, e[dit] <path>, w[rite] [path]"
 		m.commandError = false
 		return nil
 	}
@@ -189,23 +190,38 @@ func (m *model) executePrompt() tea.Cmd {
 		return nil
 	}
 
-	if strings.EqualFold(name, "fit") {
+	if strings.EqualFold(name, "resize") {
 		switch {
-		case arg == "":
+		case strings.EqualFold(arg, "auto"), strings.EqualFold(arg, "content"):
+			m.pushUndoState()
 			m.fitColumnToContent(m.selectedCol)
-			m.commandMessage = fmt.Sprintf("fit column %s", columnLabel(m.selectedCol))
+			m.commandMessage = fmt.Sprintf("resized column %s to content", columnLabel(m.selectedCol))
 			m.commandError = false
 			m.ensureVisible()
 			return nil
 		case strings.EqualFold(arg, "width"):
+			m.pushUndoState()
 			m.fitVisibleColumnsToScreen()
-			m.commandMessage = "fit visible columns to screen"
+			m.commandMessage = "resized visible columns to screen width"
 			m.commandError = false
 			m.ensureVisible()
 			return nil
-		default:
-			m.commandMessage = fmt.Sprintf("unknown fit target: '%s'", arg)
+		case arg == "":
+			m.commandMessage = "resize requires a width or mode"
 			m.commandError = true
+			return nil
+		default:
+			width, err := strconv.Atoi(arg)
+			if err != nil || width < minCellWidth {
+				m.commandMessage = fmt.Sprintf("invalid width: '%s'", arg)
+				m.commandError = true
+				return nil
+			}
+			m.pushUndoState()
+			m.setColumnWidth(m.selectedCol, width)
+			m.commandMessage = fmt.Sprintf("resized column %s to %d", columnLabel(m.selectedCol), width)
+			m.commandError = false
+			m.ensureVisible()
 			return nil
 		}
 	}

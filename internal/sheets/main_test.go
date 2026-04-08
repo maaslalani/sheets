@@ -1653,21 +1653,40 @@ func TestCommandPromptUnknownCommandShowsMessage(t *testing.T) {
 	}
 }
 
-func TestCommandPromptFitSizesSelectedColumnToContent(t *testing.T) {
+func TestCommandPromptResizeSetsSelectedColumnWidth(t *testing.T) {
+	m := newModel()
+	m.mode = normalMode
+	m.selectedCol = 1
+
+	pending := startCommand(t, m, "resize 20")
+	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if got.commandError {
+		t.Fatalf("expected resize to succeed, got %q", got.commandMessage)
+	}
+	if got.commandMessage != "resized column B to 20" {
+		t.Fatalf("expected resize success message, got %q", got.commandMessage)
+	}
+	if got.columnWidth(1) != 20 {
+		t.Fatalf("expected resized width 20, got %d", got.columnWidth(1))
+	}
+}
+
+func TestCommandPromptResizeContentSizesSelectedColumnToContent(t *testing.T) {
 	m := newModel()
 	m.mode = normalMode
 	m.selectedCol = 1
 	m.setCellValue(0, 1, "short")
 	m.setCellValue(1, 1, "much longer value")
 
-	pending := startCommand(t, m, "fit")
+	pending := startCommand(t, m, "resize content")
 	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if got.commandError {
-		t.Fatalf("expected fit to succeed, got %q", got.commandMessage)
+		t.Fatalf("expected resize content to succeed, got %q", got.commandMessage)
 	}
-	if got.commandMessage != "fit column B" {
-		t.Fatalf("expected fit success message, got %q", got.commandMessage)
+	if got.commandMessage != "resized column B to content" {
+		t.Fatalf("expected resize content success message, got %q", got.commandMessage)
 	}
 	if got.columnWidth(1) != len("much longer value") {
 		t.Fatalf("expected fitted width %d, got %d", len("much longer value"), got.columnWidth(1))
@@ -1677,21 +1696,21 @@ func TestCommandPromptFitSizesSelectedColumnToContent(t *testing.T) {
 	}
 }
 
-func TestCommandPromptFitWidthFillsVisibleScreenWidth(t *testing.T) {
+func TestCommandPromptResizeWidthFillsVisibleScreenWidth(t *testing.T) {
 	m := newModel()
 	m.mode = normalMode
 	m.width = 80
 	m.height = 24
 	visible := m.visibleCols()
 
-	pending := startCommand(t, m, "fit width")
+	pending := startCommand(t, m, "resize width")
 	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if got.commandError {
-		t.Fatalf("expected fit width to succeed, got %q", got.commandMessage)
+		t.Fatalf("expected resize width to succeed, got %q", got.commandMessage)
 	}
-	if got.commandMessage != "fit visible columns to screen" {
-		t.Fatalf("expected fit width success message, got %q", got.commandMessage)
+	if got.commandMessage != "resized visible columns to screen width" {
+		t.Fatalf("expected resize width success message, got %q", got.commandMessage)
 	}
 	used := 0
 	for col := 0; col < visible; col++ {
@@ -1699,6 +1718,21 @@ func TestCommandPromptFitWidthFillsVisibleScreenWidth(t *testing.T) {
 	}
 	if used != got.availableColumnWidth() {
 		t.Fatalf("expected fitted columns to use %d cells, got %d", got.availableColumnWidth(), used)
+	}
+}
+
+func TestCommandPromptResizeRejectsInvalidWidth(t *testing.T) {
+	m := newModel()
+	m.mode = normalMode
+
+	pending := startCommand(t, m, "resize bogus")
+	got := applyKey(t, pending, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if !got.commandError {
+		t.Fatal("expected invalid resize width to set command error")
+	}
+	if got.commandMessage != "invalid width: 'bogus'" {
+		t.Fatalf("expected invalid width message, got %q", got.commandMessage)
 	}
 }
 
