@@ -183,6 +183,7 @@ type model struct {
 	selectActiveHeaderStyle       lipgloss.Style
 	selectRowStyle                lipgloss.Style
 	selectBorderStyle             lipgloss.Style
+	yankBorderStyle               lipgloss.Style
 	statusBarStyle                lipgloss.Style
 	statusTextStyle               lipgloss.Style
 	statusAccentStyle             lipgloss.Style

@@ -352,6 +352,9 @@ func (m *model) toggleSelectionFormatting(marker byte) {
 }
 
 func (m model) renderVerticalBorder(row, borderCol int) string {
+	if m.yankVerticalBorderHighlighted(row, borderCol) {
+		return m.yankBorderStyle.Render("│")
+	}
 	if m.selectionVerticalBorderHighlighted(row, borderCol) {
 		return m.selectBorderStyle.Render("│")
 	}
@@ -360,6 +363,9 @@ func (m model) renderVerticalBorder(row, borderCol int) string {
 }
 
 func (m model) renderBorderSegment(borderRow, col int, segment string) string {
+	if m.yankHorizontalBorderHighlighted(borderRow, col) {
+		return m.yankBorderStyle.Render(segment)
+	}
 	if m.selectionHorizontalBorderHighlighted(borderRow, col) {
 		return m.selectBorderStyle.Render(segment)
 	}
@@ -368,11 +374,29 @@ func (m model) renderBorderSegment(borderRow, col int, segment string) string {
 }
 
 func (m model) renderBorderJunction(borderRow, borderCol int, fallback string) string {
+	if glyph, ok := m.yankBorderJunction(borderRow, borderCol); ok {
+		return m.yankBorderStyle.Render(glyph)
+	}
 	if glyph, ok := m.selectionBorderJunction(borderRow, borderCol); ok {
 		return m.selectBorderStyle.Render(glyph)
 	}
 
 	return m.gridStyle.Render(fallback)
+}
+
+func (m model) yankContains(row, col int) bool {
+	if !m.hasCopyBuffer {
+		return false
+	}
+	top := m.copyBuffer.sourceRow
+	left := m.copyBuffer.sourceCol
+	bottom := top + len(m.copyBuffer.cells) - 1
+	if bottom < top {
+		return false
+	}
+	right := left + len(m.copyBuffer.cells[0]) - 1
+
+	return row >= top && row <= bottom && col >= left && col <= right
 }
 
 func (m model) selectionBorderJunction(borderRow, borderCol int) (string, bool) {
@@ -415,6 +439,56 @@ func (m model) selectionBorderJunction(borderRow, borderCol int) (string, bool) 
 	default:
 		return "", false
 	}
+}
+
+func (m model) yankBorderJunction(borderRow, borderCol int) (string, bool) {
+	left := m.yankHorizontalBorderHighlighted(borderRow, borderCol-1)
+	right := m.yankHorizontalBorderHighlighted(borderRow, borderCol)
+	up := m.yankVerticalBorderHighlighted(borderRow-1, borderCol)
+	down := m.yankVerticalBorderHighlighted(borderRow, borderCol)
+
+	switch {
+	case left && right && up && down:
+		return "┼", true
+	case left && right && down:
+		return "┬", true
+	case left && right && up:
+		return "┴", true
+	case up && down && right:
+		return "├", true
+	case up && down && left:
+		return "┤", true
+	case down && right:
+		return "┌", true
+	case down && left:
+		return "┐", true
+	case up && right:
+		return "└", true
+	case up && left:
+		return "┘", true
+	case left && right:
+		return "─", true
+	case up && down:
+		return "│", true
+	case left:
+		return "─", true
+	case right:
+		return "─", true
+	case up:
+		return "│", true
+	case down:
+		return "│", true
+	default:
+		return "", false
+	}
+}
+
+func (m model) yankHorizontalBorderHighlighted(borderRow, col int) bool {
+	return m.yankContains(borderRow-1, col) != m.yankContains(borderRow, col)
+}
+
+func (m model) yankVerticalBorderHighlighted(row, borderCol int) bool {
+	return m.yankContains(row, borderCol-1) != m.yankContains(row, borderCol)
 }
 
 func (m model) selectionHorizontalBorderHighlighted(borderRow, col int) bool {
