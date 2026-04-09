@@ -42,6 +42,9 @@ func (m model) updateInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeySpace:
 		m.insertRunesAtEditingCursor([]rune{' '})
 		return m, m.restartCursorBlink()
+	case tea.KeyCtrlR, tea.KeyCtrlV:
+		m.pasteAtEditingCursor()
+		return m, m.restartCursorBlink()
 	case tea.KeyCtrlK:
 		m.deleteToEndOfEditingCursor()
 		return m, m.restartCursorBlink()

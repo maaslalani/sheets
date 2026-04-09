@@ -28,9 +28,10 @@ type cellKey struct {
 }
 
 type clipboard struct {
-	cells     [][]string
-	sourceRow int
-	sourceCol int
+	cells       [][]string
+	sourceRow   int
+	sourceCol   int
+	isReference bool
 }
 
 type promptKind rune

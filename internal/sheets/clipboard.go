@@ -1,6 +1,10 @@
 package sheets
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func cloneKeySequence(keys []tea.KeyMsg) []tea.KeyMsg {
 	return append([]tea.KeyMsg(nil), keys...)
@@ -8,9 +12,10 @@ func cloneKeySequence(keys []tea.KeyMsg) []tea.KeyMsg {
 
 func cloneClipboard(clip clipboard) clipboard {
 	cloned := clipboard{
-		cells:     make([][]string, len(clip.cells)),
-		sourceRow: clip.sourceRow,
-		sourceCol: clip.sourceCol,
+		cells:       make([][]string, len(clip.cells)),
+		sourceRow:   clip.sourceRow,
+		sourceCol:   clip.sourceCol,
+		isReference: clip.isReference,
 	}
 	for i, row := range clip.cells {
 		cloned.cells[i] = append([]string(nil), row...)
@@ -229,14 +234,17 @@ func (m *model) cutCurrentCell(count int) bool {
 }
 
 func (m *model) copySelection() {
-	m.storeYankClipboard(m.selectionClipboard())
+	clip := m.selectionClipboard()
+	clip.isReference = false // standard copy doesn't paste as reference text
+	m.storeYankClipboard(clip)
 }
 
 func (m *model) copySelectionReference() {
 	m.storeYankClipboard(clipboard{
-		cells:     [][]string{{m.selectionRef()}},
-		sourceRow: m.selectedRow,
-		sourceCol: m.selectedCol,
+		cells:       [][]string{{m.selectionRef()}},
+		sourceRow:   m.selectedRow,
+		sourceCol:   m.selectedCol,
+		isReference: true,
 	})
 }
 
@@ -256,7 +264,48 @@ func (m *model) pasteIntoCurrentCell(count int) bool {
 	if !ok {
 		return false
 	}
+	return m.pasteIntoCurrentCellWithClip(clip, count)
+}
 
+func (m *model) pasteAtEditingCursor() {
+	clip, ok := m.clipboardForPaste()
+	if !ok {
+		return
+	}
+	var text string
+	if strings.HasPrefix(m.editingValue, "=") {
+		// Paste as reference into formula
+		if clip.isReference {
+			if len(clip.cells) > 0 && len(clip.cells[0]) > 0 {
+				text = clip.cells[0][0]
+			}
+		} else {
+			if len(clip.cells) == 0 || len(clip.cells[0]) == 0 {
+				return
+			}
+			top := clip.sourceRow
+			left := clip.sourceCol
+			bottom := top + len(clip.cells) - 1
+			right := left + len(clip.cells[0]) - 1
+			if top == bottom && left == right {
+				text = cellRef(top, left)
+			} else {
+				text = cellRef(top, left) + ":" + cellRef(bottom, right)
+			}
+		}
+	} else {
+		// Paste the first cell's value as text
+		if len(clip.cells) > 0 && len(clip.cells[0]) > 0 {
+			text = clip.cells[0][0]
+		}
+	}
+	if text == "" {
+		return
+	}
+	m.insertRunesAtEditingCursor([]rune(text))
+}
+
+func (m *model) pasteIntoCurrentCellWithClip(clip clipboard, count int) bool {
 	m.pushUndoState()
 	if count <= 0 {
 		count = 1
