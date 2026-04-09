@@ -625,6 +625,13 @@ func TestRenderCellViewerContentUsesMarkdownRendering(t *testing.T) {
 	assertContainsAll(t, "markdown viewer", rendered, "Heading", "• item")
 }
 
+func TestShouldRenderMarkdownPreviewSkipsHugeDocuments(t *testing.T) {
+	large := "# Heading\n" + strings.Repeat("- item\n", maxMarkdownPreviewLines+5)
+	if shouldRenderMarkdownPreview(large) {
+		t.Fatal("expected huge markdown-like content to skip markdown preview")
+	}
+}
+
 func TestViewerPreviewValueDecodesURLEncodedText(t *testing.T) {
 	if got, want := viewerPreviewValue("Hello%20world%21"), "Hello world!"; got != want {
 		t.Fatalf("expected decoded viewer preview %q, got %q", want, got)

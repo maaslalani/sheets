@@ -3,6 +3,7 @@ package sheets
 import (
 	"errors"
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -164,6 +165,7 @@ type model struct {
 	editingValue    string
 	editingCursor   int
 	editCursor      cursor.Model
+	viewerEditor    textarea.Model
 	viewer          viewport.Model
 	viewerOpen      bool
 	viewerTitle     string

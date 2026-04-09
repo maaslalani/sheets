@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sync"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
@@ -14,6 +14,16 @@ import (
 )
 
 var urlEncodedPattern = regexp.MustCompile(`%[0-9A-Fa-f]{2}`)
+
+const (
+	maxMarkdownPreviewBytes = 16 * 1024
+	maxMarkdownPreviewLines = 400
+)
+
+var (
+	viewerRendererMu sync.Mutex
+	viewerRenderers  = map[int]*glamour.TermRenderer{}
+)
 
 func (m model) View() string {
 	if m.width == 0 || m.height == 0 {
@@ -285,7 +295,7 @@ func (m model) renderViewer(base string) string {
 	}
 	contentView := m.viewer.View()
 	if m.mode == insertMode {
-		contentView = renderViewerTextInput(m.editingValue, m.editingCursor, m.viewer.Width, m.editCursor, lipgloss.NewStyle())
+		contentView = m.viewerEditor.View()
 	}
 	contextView := m.renderViewerContext(contextWidth)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, lipgloss.NewStyle().Width(contentWidth).Render(contentView), lipgloss.NewStyle().Width(contextWidth).Render(contextView))
@@ -725,10 +735,7 @@ func renderCellViewerContent(value string, width int, markdown bool) string {
 	}
 	value = viewerPreviewValue(value)
 	if markdown {
-		renderer, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
-			glamour.WithWordWrap(width),
-		)
+		renderer, err := viewerMarkdownRenderer(width)
 		if err == nil {
 			rendered, err := renderer.Render(strings.TrimSpace(value))
 			if err == nil {
@@ -738,6 +745,23 @@ func renderCellViewerContent(value string, width int, markdown bool) string {
 	}
 
 	return strings.Join(wrapText(value, width), "\n")
+}
+
+func viewerMarkdownRenderer(width int) (*glamour.TermRenderer, error) {
+	viewerRendererMu.Lock()
+	defer viewerRendererMu.Unlock()
+	if renderer, ok := viewerRenderers[width]; ok {
+		return renderer, nil
+	}
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return nil, err
+	}
+	viewerRenderers[width] = renderer
+	return renderer, nil
 }
 
 func viewerPreviewValue(value string) string {
@@ -778,6 +802,16 @@ func looksLikeMarkdown(value string) bool {
 	return false
 }
 
+func shouldRenderMarkdownPreview(value string) bool {
+	if len(value) > maxMarkdownPreviewBytes {
+		return false
+	}
+	if strings.Count(value, "\n") > maxMarkdownPreviewLines {
+		return false
+	}
+	return looksLikeMarkdown(value)
+}
+
 func longCellContent(value string, width int) bool {
 	if strings.Contains(value, "\n") {
 		return true
@@ -787,49 +821,6 @@ func longCellContent(value string, width int) bool {
 
 func viewerTitleForCell(row, col int) string {
 	return fmt.Sprintf("Cell %s", cellRef(row, col))
-}
-
-func renderViewerTextInput(value string, cursorPos, width int, cursorModel cursor.Model, textStyle lipgloss.Style) string {
-	if width <= 0 {
-		return ""
-	}
-	runes := rawTextInputValue(value)
-	pos := clamp(cursorPos, 0, len(runes))
-	cursorModel.TextStyle = textStyle
-
-	var b strings.Builder
-	lineWidth := 0
-	writeCursor := func(char string) {
-		cursorModel.SetChar(char)
-		b.WriteString(cursorModel.View())
-		lineWidth += max(1, runewidth.StringWidth(char))
-	}
-	for i := 0; i <= len(runes); i++ {
-		if i == pos {
-			if i < len(runes) && runes[i] != '\n' {
-				writeCursor(string(runes[i]))
-				i++
-			} else {
-				writeCursor(" ")
-			}
-		}
-		if i >= len(runes) {
-			break
-		}
-		if runes[i] == '\n' {
-			b.WriteByte('\n')
-			lineWidth = 0
-			continue
-		}
-		rw := runewidth.RuneWidth(runes[i])
-		if lineWidth+rw > width {
-			b.WriteByte('\n')
-			lineWidth = 0
-		}
-		b.WriteString(textStyle.Render(string(runes[i])))
-		lineWidth += rw
-	}
-	return b.String()
 }
 
 func alignCenter(value string, width int) string {

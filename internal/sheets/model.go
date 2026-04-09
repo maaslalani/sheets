@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -28,6 +29,12 @@ func newModel() model {
 	editCursor.Style = lipgloss.NewStyle().Foreground(insertAccent)
 	editCursor.TextStyle = lipgloss.NewStyle()
 	editCursor.Blur()
+
+	viewerEditor := textarea.New()
+	viewerEditor.Prompt = ""
+	viewerEditor.ShowLineNumbers = false
+	viewerEditor.CharLimit = 0
+	viewerEditor.Blur()
 
 	headerGray := lipgloss.Color("8")
 	activeHeaderGray := white
@@ -50,6 +57,7 @@ func newModel() model {
 		registers:          make(map[rune]clipboard),
 		marks:              make(map[rune]cellKey),
 		editCursor:         editCursor,
+		viewerEditor:       viewerEditor,
 		headerStyle: lipgloss.NewStyle().
 			Foreground(headerGray),
 		activeHeaderStyle: lipgloss.NewStyle().
@@ -204,6 +212,11 @@ func (m *model) loadCSV(records [][]string) error {
 	m.editingValue = ""
 	m.editingCursor = 0
 	m.viewer = viewport.Model{}
+	m.viewerEditor = textarea.New()
+	m.viewerEditor.Prompt = ""
+	m.viewerEditor.ShowLineNumbers = false
+	m.viewerEditor.CharLimit = 0
+	m.viewerEditor.Blur()
 	m.viewerOpen = false
 	m.viewerTitle = ""
 	m.viewerCell = cellKey{}
@@ -445,7 +458,11 @@ func (m *model) refreshViewer() {
 	contentWidth := max(1, m.viewerContentWidth(modalWidth))
 	contentHeight := max(1, modalHeight-4)
 	previewValue := viewerPreviewValue(m.activeValue())
-	markdown := m.mode != insertMode && looksLikeMarkdown(previewValue)
+	markdown := m.mode != insertMode && shouldRenderMarkdownPreview(previewValue)
+	if m.mode == insertMode {
+		m.viewerEditor.SetWidth(contentWidth)
+		m.viewerEditor.SetHeight(contentHeight)
+	}
 	content := m.viewerRendered
 	if m.viewerCell != (cellKey{row: m.selectedRow, col: m.selectedCol}) || m.viewerWidth != contentWidth || m.viewerContent != m.activeValue() || m.viewerMarkdown != markdown {
 		content = renderCellViewerContent(m.activeValue(), contentWidth, markdown)
@@ -515,13 +532,11 @@ func (m *model) enterViewerInsertMode() (tea.Cmd, bool) {
 	m.recordingInsert = true
 	m.insertKeys = nil
 	m.editingValue = m.cellValue(m.selectedRow, m.selectedCol)
-	m.editingCursor = len([]rune(m.editingValue))
+	m.viewerEditor.SetValue(m.editingValue)
+	m.viewerEditor.CursorEnd()
 	m.viewerEditDirty = false
 	m.refreshViewer()
-	return tea.Batch(
-		m.editCursor.Focus(),
-		m.editCursor.SetMode(cursor.CursorBlink),
-	), true
+	return m.viewerEditor.Focus(), true
 }
 
 func (m *model) handleViewerInsertKey(msg tea.KeyMsg) (tea.Cmd, bool) {
@@ -529,20 +544,25 @@ func (m *model) handleViewerInsertKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		m.mode = normalMode
 		m.insertKeys = nil
 		m.recordingInsert = false
-		m.editCursor.Blur()
+		m.editingValue = m.viewerEditor.Value()
+		m.viewerEditor.Blur()
 		m.refreshViewer()
 		return nil, true
 	}
 
-	updated, cmd := m.updateViewerInsert(msg)
-	next := updated.(model)
-	if next.editingValue != m.editingValue && !m.viewerEditDirty {
-		next.pushUndoState()
-		next.viewerEditDirty = true
+	if m.recordingInsert && !m.replayingChange {
+		m.insertKeys = append(m.insertKeys, msg)
 	}
-	next.setCellValue(next.selectedRow, next.selectedCol, next.editingValue)
-	next.refreshViewer()
-	*m = next
+	prev := m.viewerEditor.Value()
+	var cmd tea.Cmd
+	m.viewerEditor, cmd = m.viewerEditor.Update(msg)
+	m.editingValue = m.viewerEditor.Value()
+	if m.editingValue != prev && !m.viewerEditDirty {
+		m.pushUndoState()
+		m.viewerEditDirty = true
+	}
+	m.setCellValue(m.selectedRow, m.selectedCol, m.editingValue)
+	m.refreshViewer()
 	return cmd, true
 }
 
