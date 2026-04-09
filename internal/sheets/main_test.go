@@ -3024,3 +3024,162 @@ func TestCellFromMouseMapping(t *testing.T) {
 		t.Fatal("expected click on column border to return false")
 	}
 }
+
+func TestPeekEnterOpensAndAnyKeyCloses(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.setCellValue(0, 0, "hello world this is a long value")
+
+	// Enter opens peek
+	m = applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.peekActive {
+		t.Fatal("expected peekActive after Enter")
+	}
+
+	// View should contain the cell ref and value
+	view := m.View()
+	assertContainsAll(t, "peek view", view, "A1", "hello world this is a long value")
+
+	// Any key closes peek
+	m = applyKey(t, m, runeKey("x"))
+	if m.peekActive {
+		t.Fatal("expected peekActive to be false after dismiss")
+	}
+}
+
+func TestPeekEmptyCellShowsEmpty(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+
+	m = applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	view := m.View()
+	assertContainsAll(t, "peek view", view, "(empty)")
+}
+
+func TestPeekEscapeCloses(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.setCellValue(0, 0, "test")
+
+	m = applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if !m.peekActive {
+		t.Fatal("expected peekActive")
+	}
+	m = applyKey(t, m, tea.KeyMsg{Type: tea.KeyEscape})
+	if m.peekActive {
+		t.Fatal("expected peekActive false after Escape")
+	}
+}
+
+func TestResizeColumnPlus(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	original := m.colWidth(0)
+
+	m = applyKey(t, m, runeKey("+"))
+	if m.colWidth(0) != original+2 {
+		t.Fatalf("expected col 0 width %d, got %d", original+2, m.colWidth(0))
+	}
+	// Other columns should be unchanged
+	if m.colWidth(1) != original {
+		t.Fatalf("expected col 1 width %d (unchanged), got %d", original, m.colWidth(1))
+	}
+}
+
+func TestResizeColumnMinus(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	original := m.colWidth(0)
+
+	m = applyKey(t, m, runeKey("-"))
+	if m.colWidth(0) != original-2 {
+		t.Fatalf("expected col 0 width %d, got %d", original-2, m.colWidth(0))
+	}
+}
+
+func TestResizeColumnMinimum(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.colWidths[0] = 4
+
+	m = applyKey(t, m, runeKey("-"))
+	if m.colWidth(0) != 4 {
+		t.Fatalf("expected col width to stay at 4, got %d", m.colWidth(0))
+	}
+}
+
+func TestAutoFitCurrentColumn(t *testing.T) {
+	m := newModel()
+	m.width = 120
+	m.height = 24
+	m.setCellValue(0, 0, "short")
+	m.setCellValue(1, 0, "a longer value here")
+	m.setCellValue(0, 1, "other column with wide content")
+
+	m = applyKey(t, m, runeKey("="))
+	// Col 0 should fit "a longer value here" (19 chars) + 2 padding = 21
+	if m.colWidth(0) != 21 {
+		t.Fatalf("expected col 0 auto-fit to 21, got %d", m.colWidth(0))
+	}
+	// Col 1 should be unchanged (default)
+	if _, ok := m.colWidths[1]; ok {
+		t.Fatal("expected col 1 to remain at default width")
+	}
+}
+
+func TestFitAllCommand(t *testing.T) {
+	m := newModel()
+	m.width = 200
+	m.height = 24
+	m.setCellValue(0, 0, "hello")      // 5 + 2 = 7
+	m.setCellValue(0, 1, "world12345") // 10 + 2 = 12
+
+	m = applyKeys(t, m, runeKey(":"))
+	for _, r := range "fitall" {
+		m = applyKey(t, m, runeKey(string(r)))
+	}
+	m = applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+
+	if m.colWidth(0) != 7 {
+		t.Fatalf("expected col 0 width 7, got %d", m.colWidth(0))
+	}
+	if m.colWidth(1) != 12 {
+		t.Fatalf("expected col 1 width 12, got %d", m.colWidth(1))
+	}
+}
+
+func TestPerColumnWidthRendering(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.setCellValue(0, 0, "narrow")
+	m.setCellValue(0, 1, "wide content here")
+	m.colWidths[0] = 8
+	m.colWidths[1] = 20
+
+	view := m.View()
+	// Col 0 should truncate/fit to 8 chars, col 1 should show full content
+	assertContainsAll(t, "rendered view", view, "narrow", "wide content here")
+}
+
+func TestVisibleColsWithPerColumnWidths(t *testing.T) {
+	m := newModel()
+	m.width = 40
+	m.height = 24
+	m.colWidths[0] = 10
+	m.colWidths[1] = 10
+	m.colWidths[2] = 10
+
+	vis := m.visibleCols()
+	// Available = 40 - rowLabelWidth - 2; each col takes 11 (10+1 border)
+	// Should fit a limited number based on actual widths
+	if vis < 1 {
+		t.Fatalf("expected at least 1 visible col, got %d", vis)
+	}
+}

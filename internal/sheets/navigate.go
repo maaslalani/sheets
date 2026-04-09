@@ -131,16 +131,26 @@ func (m model) halfPageRows() int {
 
 func (m model) visibleCols() int {
 	available := m.width - m.rowLabelWidth - 2
-	if available <= m.cellWidth+1 {
-		return 1
+	used := 0
+	cols := 0
+	for c := m.colOffset; c < totalCols; c++ {
+		w := m.colWidth(c) + 1 // +1 for border
+		if cols == 0 {
+			// always show at least one column
+			cols = 1
+			used = w
+			continue
+		}
+		if used+w > available {
+			break
+		}
+		used += w
+		cols++
 	}
-
-	cols := available / (m.cellWidth + 1)
 	if cols < 1 {
 		return 1
 	}
-
-	return min(cols, totalCols-m.colOffset)
+	return cols
 }
 
 func (m model) firstNonBlankColumn(row int) int {
@@ -217,12 +227,15 @@ func (m model) cellFromMouse(x, y int) (row, col int, ok bool) {
 		return 0, 0, false
 	}
 
-	stride := m.cellWidth + 1
-	visibleColIndex := (x - cellAreaStart) / stride
-	offsetInStride := (x - cellAreaStart) % stride
-	if offsetInStride >= m.cellWidth || visibleColIndex >= m.visibleCols() {
-		return 0, 0, false
+	pos := cellAreaStart
+	visCols := m.visibleCols()
+	for i := 0; i < visCols; i++ {
+		c := m.colOffset + i
+		w := m.colWidth(c)
+		if x >= pos && x < pos+w {
+			return m.rowOffset + visibleRowIndex, c, true
+		}
+		pos += w + 1 // +1 for border
 	}
-
-	return m.rowOffset + visibleRowIndex, m.colOffset + visibleColIndex, true
+	return 0, 0, false
 }

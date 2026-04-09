@@ -131,7 +131,7 @@ func (m *model) executePrompt() tea.Cmd {
 		return tea.Quit
 	case strings.EqualFold(command, "help"),
 		strings.EqualFold(command, "?"):
-		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path]"
+		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path], fitall | Enter=peek, +/-=resize col, ==autofit col"
 		m.commandError = false
 		return nil
 	}
@@ -191,6 +191,27 @@ func (m *model) executePrompt() tea.Cmd {
 			return nil
 		}
 		m.commandMessage = fmt.Sprintf("loaded %s", arg)
+		m.commandError = false
+		return nil
+	}
+
+	if strings.EqualFold(command, "fitall") || strings.EqualFold(command, "fa") {
+		maxAllowed := m.width - m.rowLabelWidth - 4
+		for key := range m.cells {
+			col := key.col
+			if _, done := m.colWidths[col]; done {
+				continue
+			}
+			w := m.maxContentWidthForCol(col) + 2
+			if w < 4 {
+				w = 4
+			}
+			if w > maxAllowed {
+				w = maxAllowed
+			}
+			m.colWidths[col] = w
+		}
+		m.commandMessage = "auto-fitted all columns"
 		m.commandError = false
 		return nil
 	}

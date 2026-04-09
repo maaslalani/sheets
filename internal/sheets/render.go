@@ -2,6 +2,7 @@ package sheets
 
 import (
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 	"strconv"
 	"strings"
@@ -38,7 +39,13 @@ func (m model) View() string {
 		parts = append(parts, commandLine)
 	}
 	parts = append(parts, bottomBar)
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	view := lipgloss.JoinVertical(lipgloss.Left, parts...)
+
+	if m.peekActive {
+		return m.renderPeekOverlay(view)
+	}
+
+	return view
 }
 
 func (m model) renderStatusSpacer(contentHeight int) string {
@@ -143,9 +150,11 @@ func (m model) renderColumnHeaders() string {
 	var b strings.Builder
 	b.WriteString(strings.Repeat(" ", m.rowLabelWidth+2))
 
-	for i := 0; i < m.visibleCols(); i++ {
+	visCols := m.visibleCols()
+	for i := 0; i < visCols; i++ {
 		col := m.colOffset + i
-		label := alignCenter(columnLabel(col), m.cellWidth)
+		w := m.colWidth(col)
+		label := alignCenter(columnLabel(col), w)
 		if m.mode == selectMode && m.selectionContains(m.selectedRow, col) {
 			b.WriteString(m.activeHeaderStyle.Render(label))
 		} else if col == m.selectedCol {
@@ -154,7 +163,7 @@ func (m model) renderColumnHeaders() string {
 			b.WriteString(m.headerStyle.Render(label))
 		}
 
-		if i < m.visibleCols()-1 {
+		if i < visCols-1 {
 			b.WriteString(" ")
 		}
 	}
@@ -190,9 +199,9 @@ func (m model) renderBorderLine(borderRow int, left, middle, right string, visib
 	b.WriteString(" ")
 	b.WriteString(m.renderBorderJunction(borderRow, m.colOffset, left))
 
-	segment := strings.Repeat("─", m.cellWidth)
 	for i := range visibleCols {
 		col := m.colOffset + i
+		segment := strings.Repeat("─", m.colWidth(col))
 		b.WriteString(m.renderBorderSegment(borderRow, col, segment))
 		if i == visibleCols-1 {
 			b.WriteString(m.renderBorderJunction(borderRow, col+1, right))
@@ -221,7 +230,8 @@ func (m model) renderContentLine(row, visibleCols int) string {
 
 	for i := range visibleCols {
 		col := m.colOffset + i
-		cell := fit(m.displayValue(row, col), m.cellWidth)
+		w := m.colWidth(col)
+		cell := fit(m.displayValue(row, col), w)
 		formula := m.isFormulaDisplayCell(row, col)
 		formulaError := formula && m.isFormulaErrorDisplayCell(row, col)
 		raw := m.cellValue(row, col)
@@ -499,6 +509,95 @@ func fitLeft(value string, width int) string {
 	}
 
 	return strings.Repeat(" ", width-w) + value
+}
+
+func (m model) renderPeekOverlay(base string) string {
+	ref := cellRef(m.selectedRow, m.selectedCol)
+	value := m.activeValue()
+	if value == "" {
+		value = "(empty)"
+	}
+
+	// Box dimensions: up to 60% of screen, min 30 wide
+	boxInner := m.width*3/5 - 4
+	if boxInner < 26 {
+		boxInner = 26
+	}
+	if boxInner > m.width-6 {
+		boxInner = m.width - 6
+	}
+	maxLines := m.height*3/5 - 4
+	if maxLines < 3 {
+		maxLines = 3
+	}
+
+	// Wrap content into lines
+	var contentLines []string
+	for _, line := range strings.Split(value, "\n") {
+		runes := []rune(line)
+		for len(runes) > boxInner {
+			contentLines = append(contentLines, string(runes[:boxInner]))
+			runes = runes[boxInner:]
+		}
+		contentLines = append(contentLines, string(runes))
+	}
+	if len(contentLines) > maxLines {
+		contentLines = contentLines[:maxLines]
+		contentLines = append(contentLines, "…")
+	}
+
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
+	title := titleStyle.Render(ref) + dimStyle.Render("  press any key to close")
+
+	body := strings.Join(contentLines, "\n")
+
+	boxStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("33")).
+		Padding(0, 1).
+		Width(boxInner)
+
+	box := boxStyle.Render(title + "\n" + body)
+	boxW := lipgloss.Width(box)
+	boxH := lipgloss.Height(box)
+
+	// Center position
+	startCol := (m.width - boxW) / 2
+	startRow := (m.height - boxH) / 2
+	if startCol < 0 {
+		startCol = 0
+	}
+	if startRow < 0 {
+		startRow = 0
+	}
+
+	// Overlay box onto base using ANSI-aware truncation
+	baseLines := strings.Split(base, "\n")
+	boxLines := strings.Split(box, "\n")
+
+	for i, bLine := range boxLines {
+		row := startRow + i
+		if row >= len(baseLines) {
+			break
+		}
+
+		bl := baseLines[row]
+
+		// Left part: ANSI-aware truncate to startCol
+		left := ansi.Truncate(bl, startCol, "")
+		leftW := lipgloss.Width(left)
+		if leftW < startCol {
+			left += strings.Repeat(" ", startCol-leftW)
+		}
+
+		// Right part: strip startCol+boxW chars from left side
+		right := ansi.TruncateLeft(bl, startCol+boxW, "")
+
+		baseLines[row] = left + bLine + right
+	}
+
+	return strings.Join(baseLines, "\n")
 }
 
 func truncate(value string, width int) string {

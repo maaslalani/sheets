@@ -172,7 +172,7 @@ func (m model) exitInsertMode() (tea.Model, tea.Cmd) {
 func (m model) renderEditingCell() string {
 	cursorModel := m.editCursor
 	cursorModel.TextStyle = lipgloss.NewStyle()
-	return renderTextInput(m.editingValue, m.editingCursor, m.cellWidth, cursorModel, lipgloss.NewStyle())
+	return renderTextInput(m.editingValue, m.editingCursor, m.colWidth(m.selectedCol), cursorModel, lipgloss.NewStyle())
 }
 
 func (m *model) moveEditingCursor(delta int) {

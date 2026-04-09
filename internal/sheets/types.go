@@ -133,6 +133,7 @@ type model struct {
 	markJumpExact   bool
 	commandError    bool
 	dirtyFile       bool
+	peekActive      bool
 
 	selectedRow int
 	selectedCol int
@@ -143,6 +144,7 @@ type model struct {
 	colOffset   int
 
 	cellWidth     int
+	colWidths     map[int]int
 	rowLabelWidth int
 
 	cells           map[cellKey]string
