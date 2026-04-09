@@ -503,7 +503,7 @@ func resolveAggregateFunction(name string) (aggregateFunction, bool) {
 	switch strings.ToUpper(name) {
 	case "SUM":
 		return aggregateFunctionSum, true
-	case "AVG":
+	case "AVG", "AVERAGE":
 		return aggregateFunctionAvg, true
 	case "MIN":
 		return aggregateFunctionMin, true
