@@ -1,6 +1,10 @@
 package sheets
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 func (m *model) goToCell(row, col int) {
 	m.selectedRow = clamp(row, 0, m.rowCount-1)
@@ -97,12 +101,11 @@ func (m *model) ensureVisible() {
 		m.rowOffset = m.selectedRow - visibleRows + 1
 	}
 
-	visibleCols := m.visibleCols()
 	if m.selectedCol < m.colOffset {
 		m.colOffset = m.selectedCol
 	}
-	if m.selectedCol >= m.colOffset+visibleCols {
-		m.colOffset = m.selectedCol - visibleCols + 1
+	for m.selectedCol > m.visibleColumns()[len(m.visibleColumns())-1].col && m.colOffset < m.selectedCol {
+		m.colOffset++
 	}
 }
 
@@ -112,7 +115,11 @@ func (m model) visibleRows() int {
 }
 
 func (m model) maxVisibleRows() int {
-	available := m.height - 3
+	commandLineHeight := 0
+	if commandLine := m.renderCommandLine(); commandLine != "" {
+		commandLineHeight = lipgloss.Height(commandLine)
+	}
+	available := m.height - 2 - commandLineHeight
 	if available < 3 {
 		return 1
 	}
@@ -127,20 +134,6 @@ func (m model) maxVisibleRows() int {
 
 func (m model) halfPageRows() int {
 	return max(1, m.maxVisibleRows()/2)
-}
-
-func (m model) visibleCols() int {
-	available := m.width - m.rowLabelWidth - 2
-	if available <= m.cellWidth+1 {
-		return 1
-	}
-
-	cols := available / (m.cellWidth + 1)
-	if cols < 1 {
-		return 1
-	}
-
-	return min(cols, totalCols-m.colOffset)
 }
 
 func (m model) firstNonBlankColumn(row int) int {
@@ -217,12 +210,19 @@ func (m model) cellFromMouse(x, y int) (row, col int, ok bool) {
 		return 0, 0, false
 	}
 
-	stride := m.cellWidth + 1
-	visibleColIndex := (x - cellAreaStart) / stride
-	offsetInStride := (x - cellAreaStart) % stride
-	if offsetInStride >= m.cellWidth || visibleColIndex >= m.visibleCols() {
-		return 0, 0, false
+	offset := x - cellAreaStart
+	for _, column := range m.visibleColumns() {
+		if offset < column.width {
+			return m.rowOffset + visibleRowIndex, column.col, true
+		}
+		if offset == column.width {
+			return 0, 0, false
+		}
+		offset -= column.width + 1
+		if offset < 0 {
+			return 0, 0, false
+		}
 	}
 
-	return m.rowOffset + visibleRowIndex, m.colOffset + visibleColIndex, true
+	return 0, 0, false
 }

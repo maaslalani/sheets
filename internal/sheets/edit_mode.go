@@ -67,6 +67,59 @@ func (m model) updateInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) updateViewerInsert(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.recordingInsert && !m.replayingChange {
+		m.insertKeys = append(m.insertKeys, msg)
+	}
+	if msg.Type == tea.KeyEnter {
+		m.insertViewerRunesAtEditingCursor([]rune{'\n'})
+		return m, m.restartCursorBlink()
+	}
+
+	switch msg.Type {
+	case tea.KeyLeft, tea.KeyCtrlB:
+		m.moveViewerEditingCursor(-1)
+		return m, m.restartCursorBlink()
+	case tea.KeyRight, tea.KeyCtrlF:
+		m.moveViewerEditingCursor(1)
+		return m, m.restartCursorBlink()
+	case tea.KeyHome, tea.KeyCtrlA:
+		m.editingCursor = 0
+		return m, m.restartCursorBlink()
+	case tea.KeyEnd, tea.KeyCtrlE:
+		m.editingCursor = len([]rune(m.editingValue))
+		return m, m.restartCursorBlink()
+	case tea.KeyDelete, tea.KeyCtrlD:
+		m.deleteAtViewerEditingCursor()
+		return m, m.restartCursorBlink()
+	case tea.KeySpace:
+		m.insertViewerRunesAtEditingCursor([]rune{' '})
+		return m, m.restartCursorBlink()
+	case tea.KeyCtrlK:
+		m.deleteToEndOfViewerEditingCursor()
+		return m, m.restartCursorBlink()
+	case tea.KeyCtrlU:
+		m.deleteToStartOfViewerEditingCursor()
+		return m, m.restartCursorBlink()
+	case tea.KeyCtrlW:
+		m.deleteWordBeforeViewerEditingCursor()
+		return m, m.restartCursorBlink()
+	case tea.KeyRunes:
+		if len(msg.Runes) > 0 {
+			m.insertViewerRunesAtEditingCursor(msg.Runes)
+			return m, m.restartCursorBlink()
+		}
+	}
+
+	switch msg.String() {
+	case "backspace", "ctrl+h":
+		m.deleteBeforeViewerEditingCursor()
+		return m, m.restartCursorBlink()
+	}
+
+	return m, nil
+}
+
 func (m model) moveInsertSelection(deltaRow, deltaCol int) (tea.Model, tea.Cmd) {
 	m.commitCurrentInput()
 	m.moveSelection(deltaRow, deltaCol)
@@ -172,35 +225,63 @@ func (m model) exitInsertMode() (tea.Model, tea.Cmd) {
 func (m model) renderEditingCell() string {
 	cursorModel := m.editCursor
 	cursorModel.TextStyle = lipgloss.NewStyle()
-	return renderTextInput(m.editingValue, m.editingCursor, m.cellWidth, cursorModel, lipgloss.NewStyle())
+	return renderTextInput(m.editingValue, m.editingCursor, m.columnWidth(m.selectedCol), cursorModel, lipgloss.NewStyle())
 }
 
 func (m *model) moveEditingCursor(delta int) {
 	moveTextInputCursor(m.editingValue, &m.editingCursor, delta)
 }
 
+func (m *model) moveViewerEditingCursor(delta int) {
+	moveRawTextInputCursor(m.editingValue, &m.editingCursor, delta)
+}
+
 func (m *model) insertRunesAtEditingCursor(runes []rune) {
 	insertRunesAtTextInputCursor(&m.editingValue, &m.editingCursor, runes)
+}
+
+func (m *model) insertViewerRunesAtEditingCursor(runes []rune) {
+	insertRunesAtRawTextInputCursor(&m.editingValue, &m.editingCursor, runes)
 }
 
 func (m *model) deleteBeforeEditingCursor() {
 	deleteTextInputBeforeCursor(&m.editingValue, &m.editingCursor)
 }
 
+func (m *model) deleteBeforeViewerEditingCursor() {
+	deleteRawTextInputBeforeCursor(&m.editingValue, &m.editingCursor)
+}
+
 func (m *model) deleteAtEditingCursor() {
 	deleteTextInputAtCursor(&m.editingValue, &m.editingCursor)
+}
+
+func (m *model) deleteAtViewerEditingCursor() {
+	deleteRawTextInputAtCursor(&m.editingValue, &m.editingCursor)
 }
 
 func (m *model) deleteToStartOfEditingCursor() {
 	deleteTextInputToStartOfCursor(&m.editingValue, &m.editingCursor)
 }
 
+func (m *model) deleteToStartOfViewerEditingCursor() {
+	deleteRawTextInputToStartOfCursor(&m.editingValue, &m.editingCursor)
+}
+
 func (m *model) deleteWordBeforeEditingCursor() {
 	deleteTextInputWordBeforeCursor(&m.editingValue, &m.editingCursor)
 }
 
+func (m *model) deleteWordBeforeViewerEditingCursor() {
+	deleteRawTextInputWordBeforeCursor(&m.editingValue, &m.editingCursor)
+}
+
 func (m *model) deleteToEndOfEditingCursor() {
 	deleteTextInputToEndOfCursor(&m.editingValue, &m.editingCursor)
+}
+
+func (m *model) deleteToEndOfViewerEditingCursor() {
+	deleteRawTextInputToEndOfCursor(&m.editingValue, &m.editingCursor)
 }
 
 func renderTextInput(value string, cursorPos, width int, cursorModel cursor.Model, textStyle lipgloss.Style) string {
@@ -260,12 +341,31 @@ func normalizedTextInputValue(value string) []rune {
 	return []rune(strings.ReplaceAll(value, "\n", " "))
 }
 
+func rawTextInputValue(value string) []rune {
+	return []rune(value)
+}
+
 func moveTextInputCursor(value string, cursor *int, delta int) {
 	*cursor = clamp(*cursor+delta, 0, len(normalizedTextInputValue(value)))
 }
 
+func moveRawTextInputCursor(value string, cursor *int, delta int) {
+	*cursor = clamp(*cursor+delta, 0, len(rawTextInputValue(value)))
+}
+
 func insertRunesAtTextInputCursor(value *string, cursor *int, runes []rune) {
 	current := normalizedTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	updated := make([]rune, 0, len(current)+len(runes))
+	updated = append(updated, current[:pos]...)
+	updated = append(updated, runes...)
+	updated = append(updated, current[pos:]...)
+	*value = string(updated)
+	*cursor = pos + len(runes)
+}
+
+func insertRunesAtRawTextInputCursor(value *string, cursor *int, runes []rune) {
+	current := rawTextInputValue(*value)
 	pos := clamp(*cursor, 0, len(current))
 	updated := make([]rune, 0, len(current)+len(runes))
 	updated = append(updated, current[:pos]...)
@@ -286,6 +386,16 @@ func deleteTextInputBeforeCursor(value *string, cursor *int) {
 	*cursor = pos - 1
 }
 
+func deleteRawTextInputBeforeCursor(value *string, cursor *int) {
+	current := rawTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	if pos == 0 {
+		return
+	}
+	*value = string(append(current[:pos-1], current[pos:]...))
+	*cursor = pos - 1
+}
+
 func deleteTextInputAtCursor(value *string, cursor *int) {
 	current := normalizedTextInputValue(*value)
 	pos := clamp(*cursor, 0, len(current))
@@ -296,8 +406,24 @@ func deleteTextInputAtCursor(value *string, cursor *int) {
 	*value = string(append(current[:pos], current[pos+1:]...))
 }
 
+func deleteRawTextInputAtCursor(value *string, cursor *int) {
+	current := rawTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	if pos >= len(current) {
+		return
+	}
+	*value = string(append(current[:pos], current[pos+1:]...))
+}
+
 func deleteTextInputToStartOfCursor(value *string, cursor *int) {
 	current := normalizedTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	*value = string(current[pos:])
+	*cursor = 0
+}
+
+func deleteRawTextInputToStartOfCursor(value *string, cursor *int) {
+	current := rawTextInputValue(*value)
 	pos := clamp(*cursor, 0, len(current))
 	*value = string(current[pos:])
 	*cursor = 0
@@ -321,8 +447,31 @@ func deleteTextInputWordBeforeCursor(value *string, cursor *int) {
 	*cursor = start
 }
 
+func deleteRawTextInputWordBeforeCursor(value *string, cursor *int) {
+	current := rawTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	start := pos
+	for start > 0 && unicode.IsSpace(current[start-1]) {
+		start--
+	}
+	for start > 0 && !unicode.IsSpace(current[start-1]) {
+		start--
+	}
+	if start == pos {
+		return
+	}
+	*value = string(append(current[:start], current[pos:]...))
+	*cursor = start
+}
+
 func deleteTextInputToEndOfCursor(value *string, cursor *int) {
 	current := normalizedTextInputValue(*value)
+	pos := clamp(*cursor, 0, len(current))
+	*value = string(current[:pos])
+}
+
+func deleteRawTextInputToEndOfCursor(value *string, cursor *int) {
+	current := rawTextInputValue(*value)
 	pos := clamp(*cursor, 0, len(current))
 	*value = string(current[:pos])
 }

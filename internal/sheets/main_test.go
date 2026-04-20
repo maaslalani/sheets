@@ -592,6 +592,128 @@ func TestRenderStatusBarShowsSpreadsheetStatus(t *testing.T) {
 	assertNotContainsAny(t, "insert status bar", insertBar, "1 cells", "1 sel", "6:3")
 }
 
+func TestEnterOpensViewerForLongCellValues(t *testing.T) {
+	m := newModel()
+	m.width = 16
+	m.height = 24
+	m.setCellValue(0, 0, "1234567890abcdefghijklmnopqrstuvwxyz")
+
+	got := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if !got.viewerOpen {
+		t.Fatal("expected enter to open viewer for long cell content")
+	}
+	assertContainsAll(t, "viewer", got.View(), "Cell A1", "1234567890")
+}
+
+func TestEnterDoesNotOpenViewerForShortCellValues(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.height = 24
+	m.setCellValue(0, 0, "short")
+
+	got := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if got.viewerOpen {
+		t.Fatal("expected enter to leave viewer closed for short cell content")
+	}
+}
+
+func TestRenderCellViewerContentUsesMarkdownRendering(t *testing.T) {
+	rendered := renderCellViewerContent("# Heading\n\n- item", 40, true)
+	if strings.Contains(rendered, "- item") {
+		t.Fatalf("expected markdown list to be rendered, got %q", rendered)
+	}
+	assertContainsAll(t, "markdown viewer", rendered, "Heading", "• item")
+}
+
+func TestShouldRenderMarkdownPreviewSkipsHugeDocuments(t *testing.T) {
+	large := "# Heading\n" + strings.Repeat("- item\n", maxMarkdownPreviewLines+5)
+	if shouldRenderMarkdownPreview(large) {
+		t.Fatal("expected huge markdown-like content to skip markdown preview")
+	}
+}
+
+func TestViewerPreviewValueDecodesURLEncodedText(t *testing.T) {
+	if got, want := viewerPreviewValue("Hello%20world%21"), "Hello world!"; got != want {
+		t.Fatalf("expected decoded viewer preview %q, got %q", want, got)
+	}
+}
+
+func TestViewerPreviewValueLeavesPlainTextAlone(t *testing.T) {
+	if got, want := viewerPreviewValue("100% complete"), "100% complete"; got != want {
+		t.Fatalf("expected plain text viewer preview %q, got %q", want, got)
+	}
+}
+
+func TestViewerNavigationUpdatesFocusedCellAndContent(t *testing.T) {
+	m := newModel()
+	m.width = 16
+	m.height = 24
+	m.setCellValue(0, 0, "1234567890abcdefghijklmnopqrstuvwxyz")
+	m.setCellValue(0, 1, "second long value for viewer")
+
+	opened := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if !opened.viewerOpen {
+		t.Fatal("expected viewer to open")
+	}
+
+	moved := applyKey(t, opened, runeKey("l"))
+	if !moved.viewerOpen {
+		t.Fatal("expected viewer to stay open while navigating")
+	}
+	assertSelection(t, moved, 0, 1)
+	assertContainsAll(t, "viewer after nav", moved.View(), "Cell B1", "second")
+}
+
+func TestViewerShowsNearbyContextGrid(t *testing.T) {
+	m := newModel()
+	m.width = 16
+	m.height = 24
+	m.selectedRow = 1
+	m.selectedCol = 1
+	m.setCellValue(0, 0, "nw")
+	m.setCellValue(1, 1, "center long value for viewer")
+	m.setCellValue(2, 2, "se")
+
+	opened := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	view := opened.View()
+	assertContainsAll(t, "viewer context", view, "Row 2/999", "Col B/AZ", "A", "B", "C", "nw", "se")
+}
+
+func TestViewerInsertModeUpdatesCellLiveWithPlainText(t *testing.T) {
+	m := newModel()
+	m.width = 16
+	m.height = 24
+	m.setCellValue(0, 0, "# Heading\n\n- item")
+
+	opened := applyKey(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	editing := applyKey(t, opened, runeKey("i"))
+	if editing.mode != insertMode || !editing.viewerOpen {
+		t.Fatal("expected i to enter insert mode inside the viewer")
+	}
+
+	updated := applyKey(t, editing, runeKey("!"))
+	if got := updated.cellValue(0, 0); got != "# Heading\n\n- item!" {
+		t.Fatalf("expected live viewer edit to update cell value, got %q", got)
+	}
+	if !strings.Contains(updated.View(), "# Heading") {
+		t.Fatalf("expected viewer insert mode to show plain text markdown, got %q", updated.View())
+	}
+}
+
+func TestColumnWidthAutoFitsContentUpToTerminalWidth(t *testing.T) {
+	m := newModel()
+	m.width = 30
+	m.setCellValue(0, 0, "abcdefghijklmnopqrstuvwxyz")
+
+	got := m.columnWidth(0)
+	if got <= m.cellWidth {
+		t.Fatalf("expected auto column width to grow past the default %d, got %d", m.cellWidth, got)
+	}
+	if got > m.maxColumnWidth() {
+		t.Fatalf("expected auto column width to stay within terminal cap %d, got %d", m.maxColumnWidth(), got)
+	}
+}
+
 func TestRenderCommandLineShowsPendingCommandPrompt(t *testing.T) {
 	m := newPendingCommandModel("goto E9", len("goto E9"))
 	m.width = 80
@@ -1633,6 +1755,29 @@ func TestCommandPromptEditLoadsCSVFromPath(t *testing.T) {
 	assertCellValue(t, got, 0, 2, "=B1+1")
 	assertSelection(t, got, 0, 0)
 	assertCellValue(t, got, 4, 4, "")
+}
+
+func TestCommandPromptWidthAdjustsAndResetsCurrentColumn(t *testing.T) {
+	m := newModel()
+	m.width = 80
+	m.selectedCol = 1
+	m.setCellValue(0, 1, "short")
+
+	resized := applyKey(t, startCommand(t, m, "width 20"), tea.KeyMsg{Type: tea.KeyEnter})
+	if got, want := resized.columnWidth(1), 20; got != want {
+		t.Fatalf("expected manual column width %d, got %d", want, got)
+	}
+	if got := resized.commandMessage; got != "B width 20" {
+		t.Fatalf("expected resize command message %q, got %q", "B width 20", got)
+	}
+
+	reset := applyKey(t, startCommand(t, resized, "width auto"), tea.KeyMsg{Type: tea.KeyEnter})
+	if got, want := reset.columnWidth(1), reset.minColumnWidth(1); got != want {
+		t.Fatalf("expected auto column width %d after reset, got %d", want, got)
+	}
+	if _, ok := reset.manualColumnWidths[1]; ok {
+		t.Fatal("expected width auto to clear manual column width")
+	}
 }
 
 func TestCommandPromptUnknownCommandShowsMessage(t *testing.T) {

@@ -6,8 +6,11 @@ import (
 	"io"
 	"maps"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/cursor"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -27,25 +30,34 @@ func newModel() model {
 	editCursor.TextStyle = lipgloss.NewStyle()
 	editCursor.Blur()
 
+	viewerEditor := textarea.New()
+	viewerEditor.Prompt = ""
+	viewerEditor.ShowLineNumbers = false
+	viewerEditor.CharLimit = 0
+	viewerEditor.Blur()
+
 	headerGray := lipgloss.Color("8")
 	activeHeaderGray := white
 	statusGray := lipgloss.Color("0")
 	statusText := lipgloss.Color("7")
 	statusAccent := insertAccent
+	viewerBorder := lipgloss.Color("8")
 
 	return model{
-		mode:          normalMode,
-		rowCount:      defaultRows,
-		selectedRow:   0,
-		selectedCol:   0,
-		selectRow:     0,
-		selectCol:     0,
-		cellWidth:     12,
-		rowLabelWidth: rowLabelWidthForCount(defaultRows),
-		cells:         make(map[cellKey]string),
-		registers:     make(map[rune]clipboard),
-		marks:         make(map[rune]cellKey),
-		editCursor:    editCursor,
+		mode:               normalMode,
+		rowCount:           defaultRows,
+		selectedRow:        0,
+		selectedCol:        0,
+		selectRow:          0,
+		selectCol:          0,
+		cellWidth:          12,
+		rowLabelWidth:      rowLabelWidthForCount(defaultRows),
+		manualColumnWidths: make(map[int]int),
+		cells:              make(map[cellKey]string),
+		registers:          make(map[rune]clipboard),
+		marks:              make(map[rune]cellKey),
+		editCursor:         editCursor,
+		viewerEditor:       viewerEditor,
 		headerStyle: lipgloss.NewStyle().
 			Foreground(headerGray),
 		activeHeaderStyle: lipgloss.NewStyle().
@@ -137,6 +149,15 @@ func newModel() model {
 			Foreground(statusText),
 		commandErrorStyle: lipgloss.NewStyle().
 			Foreground(errorRed),
+		viewerStyle: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(viewerBorder).
+			Padding(0, 1).
+			Background(statusGray).
+			Foreground(statusText),
+		viewerTitleStyle: lipgloss.NewStyle().
+			Foreground(activeHeaderGray).
+			Bold(true),
 	}
 }
 
@@ -184,11 +205,26 @@ func (m *model) loadCSV(records [][]string) error {
 	m.cells = make(map[cellKey]string)
 	m.rowCount = defaultRows
 	m.syncRowLabelWidth()
+	m.manualColumnWidths = make(map[int]int)
 	m.undoStack = nil
 	m.redoStack = nil
 	m.promptKind = noPrompt
 	m.editingValue = ""
 	m.editingCursor = 0
+	m.viewer = viewport.Model{}
+	m.viewerEditor = textarea.New()
+	m.viewerEditor.Prompt = ""
+	m.viewerEditor.ShowLineNumbers = false
+	m.viewerEditor.CharLimit = 0
+	m.viewerEditor.Blur()
+	m.viewerOpen = false
+	m.viewerTitle = ""
+	m.viewerCell = cellKey{}
+	m.viewerContent = ""
+	m.viewerRendered = ""
+	m.viewerWidth = 0
+	m.viewerMarkdown = false
+	m.viewerEditDirty = false
 	m.deletePending = false
 	m.yankPending = false
 	m.yankCount = 0
@@ -296,6 +332,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.viewerOpen {
+			m.refreshViewer()
+		}
 		m.ensureVisible()
 		return m, nil
 
@@ -314,11 +353,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.clearNormalPrefixes()
 				m.goToCell(row, col)
+				if m.viewerOpen {
+					m.refreshViewer()
+				}
 			}
 		}
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.viewerOpen {
+			if cmd, handled := m.handleViewerKey(msg); handled {
+				return m, cmd
+			}
+		}
 		if isQuitKey(msg) {
 			return m, tea.Quit
 		}
@@ -392,6 +439,146 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *model) openViewerForCurrentCell() bool {
+	value := m.activeValue()
+	if !longCellContent(value, m.columnWidth(m.selectedCol)) {
+		return false
+	}
+
+	m.viewerOpen = true
+	m.viewerEditDirty = false
+	m.refreshViewer()
+	return true
+}
+
+func (m *model) refreshViewer() {
+	modalWidth, modalHeight := m.viewerDimensions()
+	contentWidth := max(1, m.viewerContentWidth(modalWidth))
+	contentHeight := max(1, modalHeight-4)
+	previewValue := viewerPreviewValue(m.activeValue())
+	markdown := m.mode != insertMode && shouldRenderMarkdownPreview(previewValue)
+	if m.mode == insertMode {
+		m.viewerEditor.SetWidth(contentWidth)
+		m.viewerEditor.SetHeight(contentHeight)
+	}
+	content := m.viewerRendered
+	if m.viewerCell != (cellKey{row: m.selectedRow, col: m.selectedCol}) || m.viewerWidth != contentWidth || m.viewerContent != m.activeValue() || m.viewerMarkdown != markdown {
+		content = renderCellViewerContent(m.activeValue(), contentWidth, markdown)
+		m.viewerContent = m.activeValue()
+		m.viewerRendered = content
+		m.viewerWidth = contentWidth
+		m.viewerMarkdown = markdown
+		m.viewerCell = cellKey{row: m.selectedRow, col: m.selectedCol}
+	}
+	prevYOffset := m.viewer.YOffset
+	if m.viewer.Width != contentWidth || m.viewer.Height != contentHeight {
+		m.viewer = viewport.New(contentWidth, contentHeight)
+		m.viewer.YPosition = 1
+	}
+	m.viewer.SetContent(content)
+	m.viewer.YOffset = clamp(prevYOffset, 0, max(0, m.viewer.TotalLineCount()-m.viewer.Height))
+	m.viewerTitle = viewerTitleForCell(m.selectedRow, m.selectedCol)
+}
+
+func (m *model) closeViewer() {
+	m.viewerOpen = false
+	m.viewer = viewport.Model{}
+	m.viewerTitle = ""
+	m.viewerContent = ""
+	m.viewerRendered = ""
+	m.viewerWidth = 0
+	m.viewerMarkdown = false
+	m.viewerEditDirty = false
+}
+
+func (m *model) handleViewerKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if m.mode == insertMode {
+		return m.handleViewerInsertKey(msg)
+	}
+
+	if isEscapeKey(msg) || msg.Type == tea.KeyEnter {
+		m.closeViewer()
+		return nil, true
+	}
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && msg.Runes[0] == 'q' {
+		m.closeViewer()
+		return nil, true
+	}
+	if msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && msg.Runes[0] == 'i' {
+		return m.enterViewerInsertMode()
+	}
+	if isViewerNavigationKey(msg) {
+		updated, cmd := m.updateNormal(msg)
+		next := updated.(model)
+		next.viewerOpen = true
+		next.refreshViewer()
+		*m = next
+		return cmd, true
+	}
+	if isViewerScrollKey(msg) {
+		var cmd tea.Cmd
+		m.viewer, cmd = m.viewer.Update(msg)
+		return cmd, true
+	}
+
+	return nil, true
+}
+
+func (m *model) enterViewerInsertMode() (tea.Cmd, bool) {
+	m.mode = insertMode
+	m.clearCount()
+	m.recordingInsert = true
+	m.insertKeys = nil
+	m.editingValue = m.cellValue(m.selectedRow, m.selectedCol)
+	m.viewerEditor.SetValue(m.editingValue)
+	m.viewerEditor.CursorEnd()
+	m.viewerEditDirty = false
+	m.refreshViewer()
+	return m.viewerEditor.Focus(), true
+}
+
+func (m *model) handleViewerInsertKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if isEscapeKey(msg) {
+		m.mode = normalMode
+		m.insertKeys = nil
+		m.recordingInsert = false
+		m.editingValue = m.viewerEditor.Value()
+		m.viewerEditor.Blur()
+		m.refreshViewer()
+		return nil, true
+	}
+
+	if m.recordingInsert && !m.replayingChange {
+		m.insertKeys = append(m.insertKeys, msg)
+	}
+	prev := m.viewerEditor.Value()
+	var cmd tea.Cmd
+	m.viewerEditor, cmd = m.viewerEditor.Update(msg)
+	m.editingValue = m.viewerEditor.Value()
+	if m.editingValue != prev && !m.viewerEditDirty {
+		m.pushUndoState()
+		m.viewerEditDirty = true
+	}
+	m.setCellValue(m.selectedRow, m.selectedCol, m.editingValue)
+	m.refreshViewer()
+	return cmd, true
+}
+
+func isViewerNavigationKey(msg tea.KeyMsg) bool {
+	if msg.Type == tea.KeyLeft || msg.Type == tea.KeyRight || msg.Type == tea.KeyUp || msg.Type == tea.KeyDown {
+		return true
+	}
+	return msg.Type == tea.KeyRunes && len(msg.Runes) == 1 && strings.ContainsRune("hjkl", msg.Runes[0])
+}
+
+func isViewerScrollKey(msg tea.KeyMsg) bool {
+	switch msg.Type {
+	case tea.KeyPgUp, tea.KeyPgDown:
+		return true
+	}
+	return msg.String() == "ctrl+u" || msg.String() == "ctrl+d"
 }
 
 func isQuitKey(msg tea.KeyMsg) bool {
