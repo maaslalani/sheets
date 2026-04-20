@@ -112,6 +112,8 @@ func newModel() model {
 		selectBorderStyle: lipgloss.NewStyle().
 			Background(selectBackground).
 			Foreground(selectAccent),
+		yankBorderStyle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("208")),
 		statusBarStyle: lipgloss.NewStyle().
 			Background(statusGray).
 			Foreground(statusText),
@@ -371,6 +373,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == selectMode && isEscapeKey(msg) {
 			m.clearNormalPrefixes()
 			return m.exitSelectMode(), nil
+		}
+		if m.mode == normalMode && isEscapeKey(msg) {
+			m.hasCopyBuffer = false
 		}
 
 		switch m.mode {

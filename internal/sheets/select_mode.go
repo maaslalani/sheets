@@ -122,6 +122,12 @@ func (m model) updateSelect(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.clearCount()
 			m.clearRegisterState()
 			return m.exitSelectMode(), nil
+		case "p":
+			m.cutSelection()
+			m.pasteIntoCurrentCell(1)
+			m.clearCount()
+			m.clearRegisterState()
+			return m.exitSelectMode(), nil
 		case "/":
 			m.clearNormalPrefixes()
 			return m, m.startSearchPrompt(1)
