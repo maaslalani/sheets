@@ -88,6 +88,8 @@ Press <kbd>:</kbd> to open the command prompt, then use commands such as:
 - <kbd>:e path.csv</kbd> to open another CSV
 - <kbd>:q</kbd> or <kbd>:wq</kbd> to quit
 - <kbd>:goto B9</kbd> or <kbd>:B9</kbd> to jump to a cell
+- <kbd>:sort</kbd> to sort by the current column ascending (row 1 treated as header, empty rows sink to bottom)
+- <kbd>:sort!</kbd> to sort descending
 
 ## Installation
 

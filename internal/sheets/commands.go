@@ -131,7 +131,7 @@ func (m *model) executePrompt() tea.Cmd {
 		return tea.Quit
 	case strings.EqualFold(command, "help"),
 		strings.EqualFold(command, "?"):
-		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path]"
+		m.commandMessage = "Commands: q, w, wq, x, goto <cell>, <cell>, e[dit] <path>, w[rite] [path], sort, sort!"
 		m.commandError = false
 		return nil
 	}
@@ -173,6 +173,12 @@ func (m *model) executePrompt() tea.Cmd {
 		m.commandMessage = fmt.Sprintf("wrote %s", arg)
 		m.commandError = false
 		m.dirtyFile = false
+		return nil
+	}
+
+	if strings.EqualFold(command, "sort") || command == "sort!" {
+		ascending := command != "sort!"
+		m.sortByColumn(m.selectedCol, ascending)
 		return nil
 	}
 
