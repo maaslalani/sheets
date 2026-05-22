@@ -281,8 +281,8 @@ func (m *model) pasteIntoCurrentCell(count int) bool {
 }
 
 func (m *model) insertColAt(insertCol int) {
-	insertCol = clamp(insertCol, 0, totalCols)
-	if insertCol >= totalCols {
+	insertCol = clamp(insertCol, 0, totalCols-1)
+	if insertCol >= totalCols-1 {
 		return
 	}
 	m.pushUndoState()
