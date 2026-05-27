@@ -32,6 +32,7 @@ func newModel() model {
 	statusGray := lipgloss.Color("0")
 	statusText := lipgloss.Color("7")
 	statusAccent := insertAccent
+	statusNormalAccent := lipgloss.Color("13")
 
 	return model{
 		mode:          normalMode,
@@ -122,7 +123,7 @@ func newModel() model {
 			Background(statusGray).
 			Foreground(statusAccent),
 		statusNormalStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("33")).
+			Background(statusNormalAccent).
 			Foreground(white).
 			Padding(0, 1),
 		statusInsertStyle: lipgloss.NewStyle().

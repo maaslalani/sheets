@@ -2590,13 +2590,13 @@ func TestEditCursorMatchesInsertModeColor(t *testing.T) {
 	}
 }
 
-func TestStatusModeColorsUseLegacyInsertAndNormalColors(t *testing.T) {
+func TestStatusModeColorsUseExpectedAccents(t *testing.T) {
 	m := newModel()
 
 	if got, want := m.statusInsertStyle.GetBackground(), lipgloss.Color("#D79921"); got != want {
 		t.Fatalf("expected insert status color %v, got %v", want, got)
 	}
-	if got, want := m.statusNormalStyle.GetBackground(), lipgloss.Color("33"); got != want {
+	if got, want := m.statusNormalStyle.GetBackground(), lipgloss.Color("13"); got != want {
 		t.Fatalf("expected normal status color %v, got %v", want, got)
 	}
 	if got, want := m.statusSelectStyle.GetBackground(), lipgloss.Color("13"); got != want {
