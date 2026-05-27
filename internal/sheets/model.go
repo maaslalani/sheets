@@ -29,6 +29,7 @@ func newModel() model {
 
 	headerGray := lipgloss.Color("8")
 	activeHeaderGray := white
+	normalAccent := lipgloss.Color("13")
 	statusGray := lipgloss.Color("0")
 	statusText := lipgloss.Color("7")
 	statusAccent := insertAccent
@@ -122,7 +123,7 @@ func newModel() model {
 			Background(statusGray).
 			Foreground(statusAccent),
 		statusNormalStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("33")).
+			Background(normalAccent).
 			Foreground(white).
 			Padding(0, 1),
 		statusInsertStyle: lipgloss.NewStyle().
