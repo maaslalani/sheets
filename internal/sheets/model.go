@@ -14,6 +14,7 @@ import (
 
 func newModel() model {
 	insertAccent := lipgloss.Color("#D79921")
+	normalAccent := lipgloss.Color("13")
 	selectAccent := lipgloss.Color("#2F66C7")
 	statusSelectAccent := lipgloss.Color("13")
 	formulaGreen := lipgloss.Color("2")
@@ -122,7 +123,7 @@ func newModel() model {
 			Background(statusGray).
 			Foreground(statusAccent),
 		statusNormalStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("33")).
+			Background(normalAccent).
 			Foreground(white).
 			Padding(0, 1),
 		statusInsertStyle: lipgloss.NewStyle().
