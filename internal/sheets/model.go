@@ -122,7 +122,7 @@ func newModel() model {
 			Background(statusGray).
 			Foreground(statusAccent),
 		statusNormalStyle: lipgloss.NewStyle().
-			Background(lipgloss.Color("33")).
+			Background(lipgloss.Color("5")).
 			Foreground(white).
 			Padding(0, 1),
 		statusInsertStyle: lipgloss.NewStyle().
