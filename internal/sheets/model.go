@@ -41,6 +41,7 @@ func newModel() model {
 		selectRow:     0,
 		selectCol:     0,
 		cellWidth:     12,
+		colWidths:     make(map[int]int),
 		rowLabelWidth: rowLabelWidthForCount(defaultRows),
 		cells:         make(map[cellKey]string),
 		registers:     make(map[rune]clipboard),
@@ -182,6 +183,7 @@ func (m *model) loadCSV(records [][]string) error {
 	}
 
 	m.cells = make(map[cellKey]string)
+	m.colWidths = make(map[int]int)
 	m.rowCount = defaultRows
 	m.syncRowLabelWidth()
 	m.undoStack = nil
@@ -321,6 +323,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		if isQuitKey(msg) {
 			return m, tea.Quit
+		}
+		if m.peekActive {
+			m.peekActive = false
+			return m, nil
 		}
 		if !m.commandPending {
 			m.commandMessage = ""

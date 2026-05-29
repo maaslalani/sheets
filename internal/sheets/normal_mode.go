@@ -47,6 +47,9 @@ func (m model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.clearRegisterState()
 	case tea.KeyCtrlR:
 		m.redoLastOperation()
+	case tea.KeyEnter:
+		m.peekActive = true
+		m.clearNormalPrefixes()
 	case tea.KeyCtrlB:
 		m.toggleCellFormatting('*')
 		m.clearCount()
@@ -193,6 +196,32 @@ func (m model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "`":
 			m.markJumpPending = true
 			m.markJumpExact = true
+		case "+":
+			col := m.selectedCol
+			m.colWidths[col] = m.colWidth(col) + 2
+			m.clearCount()
+			m.clearRegisterState()
+		case "-":
+			col := m.selectedCol
+			cur := m.colWidth(col)
+			if cur > 4 {
+				m.colWidths[col] = cur - 2
+			}
+			m.clearCount()
+			m.clearRegisterState()
+		case "=":
+			col := m.selectedCol
+			w := m.maxContentWidthForCol(col) + 2
+			if w < 4 {
+				w = 4
+			}
+			maxAllowed := m.width - m.rowLabelWidth - 4
+			if w > maxAllowed {
+				w = maxAllowed
+			}
+			m.colWidths[col] = w
+			m.clearCount()
+			m.clearRegisterState()
 		}
 	}
 
