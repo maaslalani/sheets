@@ -9,8 +9,8 @@ import (
 
 const (
 	defaultRows = 999
-	maxRows     = 50000
-	totalCols   = 52
+	maxRows     = 999999999
+	totalCols   = 676
 )
 
 type mode string
