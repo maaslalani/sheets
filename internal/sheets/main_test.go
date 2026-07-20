@@ -2596,7 +2596,7 @@ func TestStatusModeColorsUseLegacyInsertAndNormalColors(t *testing.T) {
 	if got, want := m.statusInsertStyle.GetBackground(), lipgloss.Color("#D79921"); got != want {
 		t.Fatalf("expected insert status color %v, got %v", want, got)
 	}
-	if got, want := m.statusNormalStyle.GetBackground(), lipgloss.Color("5"); got != want {
+	if got, want := m.statusNormalStyle.GetBackground(), lipgloss.Color("33"); got != want {
 		t.Fatalf("expected normal status color %v, got %v", want, got)
 	}
 	if got, want := m.statusSelectStyle.GetBackground(), lipgloss.Color("13"); got != want {

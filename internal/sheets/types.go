@@ -142,6 +142,8 @@ type model struct {
 	rowOffset   int
 	colOffset   int
 
+	keymap KeymapConfig
+
 	cellWidth     int
 	rowLabelWidth int
 
@@ -188,6 +190,10 @@ type model struct {
 	statusNormalStyle             lipgloss.Style
 	statusInsertStyle             lipgloss.Style
 	statusSelectStyle             lipgloss.Style
+	statusGotoStyle               lipgloss.Style
 	commandLineStyle              lipgloss.Style
 	commandErrorStyle             lipgloss.Style
+	gotoOverlayColStyle           lipgloss.Style
+	gotoOverlayRowStyle           lipgloss.Style
+	gotoOverlayDimStyle           lipgloss.Style
 }

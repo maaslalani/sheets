@@ -63,6 +63,9 @@ func (m model) renderStatusBar() string {
 func (m model) renderStatusMode() string {
 	modeLabel := m.statusModeLabel()
 	label := fit(modeLabel, max(6, runewidth.StringWidth(modeLabel)))
+	if m.gotoPending {
+		return m.statusGotoStyle.Render(label)
+	}
 	if m.mode == commandMode {
 		return m.statusTextStyle.Render(label)
 	}
@@ -77,6 +80,9 @@ func (m model) renderStatusMode() string {
 }
 
 func (m model) statusModeLabel() string {
+	if m.gotoPending {
+		return "GOTO"
+	}
 	if m.mode == commandMode {
 		return "COMMAND"
 	}
@@ -91,6 +97,11 @@ func (m model) renderCommandLine() string {
 	width := m.width
 	if width <= 0 {
 		return ""
+	}
+
+	if m.gotoPending {
+		prompt := "g" + m.gotoBuffer
+		return m.gotoOverlayColStyle.Render(fit(prompt, width))
 	}
 
 	if m.commandMessage != "" {
@@ -146,7 +157,13 @@ func (m model) renderColumnHeaders() string {
 	for i := 0; i < m.visibleCols(); i++ {
 		col := m.colOffset + i
 		label := alignCenter(columnLabel(col), m.cellWidth)
-		if m.mode == selectMode && m.selectionContains(m.selectedRow, col) {
+		if m.gotoPending {
+			if m.gotoBufferMatchesCol(col) {
+				b.WriteString(m.gotoOverlayColStyle.Render(label))
+			} else {
+				b.WriteString(m.gotoOverlayDimStyle.Render(label))
+			}
+		} else if m.mode == selectMode && m.selectionContains(m.selectedRow, col) {
 			b.WriteString(m.activeHeaderStyle.Render(label))
 		} else if col == m.selectedCol {
 			b.WriteString(m.activeHeaderStyle.Render(label))
@@ -208,7 +225,14 @@ func (m model) renderBorderLine(borderRow int, left, middle, right string, visib
 func (m model) renderContentLine(row, visibleCols int) string {
 	var b strings.Builder
 	label := fitLeft(strconv.Itoa(row+1), m.rowLabelWidth)
-	if m.mode == selectMode && m.selectionContains(row, m.selectedCol) {
+	if m.gotoPending {
+		rowStr := strconv.Itoa(row + 1)
+		if m.gotoBufferMatchesRow(rowStr) {
+			b.WriteString(m.gotoOverlayRowStyle.Render(label))
+		} else {
+			b.WriteString(m.gotoOverlayDimStyle.Render(label))
+		}
+	} else if m.mode == selectMode && m.selectionContains(row, m.selectedCol) {
 		b.WriteString(m.activeRowStyle.Render(label))
 	} else if row == m.selectedRow {
 		b.WriteString(m.activeRowStyle.Render(label))
@@ -221,6 +245,17 @@ func (m model) renderContentLine(row, visibleCols int) string {
 
 	for i := range visibleCols {
 		col := m.colOffset + i
+
+		if m.gotoPending {
+			if m.gotoCellMatches(row, col) {
+				b.WriteString(m.renderGotoCell(row, col))
+			} else {
+				b.WriteString(m.gotoOverlayDimStyle.Render(fit(m.displayValue(row, col), m.cellWidth)))
+			}
+			b.WriteString(m.renderVerticalBorder(row, col+1))
+			continue
+		}
+
 		cell := fit(m.displayValue(row, col), m.cellWidth)
 		formula := m.isFormulaDisplayCell(row, col)
 		formulaError := formula && m.isFormulaErrorDisplayCell(row, col)
@@ -245,6 +280,99 @@ func (m model) renderContentLine(row, visibleCols int) string {
 	}
 
 	return b.String()
+}
+
+func (m model) renderGotoCell(row, col int) string {
+	ref := cellRef(row, col)
+	width := m.cellWidth
+
+	// Build the overlay: style each char based on matched/unmatched + col/row.
+	split := 0
+	for split < len(ref) && isLetter(ref[split]) {
+		split++
+	}
+
+	matchLen := len(m.gotoBuffer)
+	fullMatch := matchLen >= len(ref)
+
+	var label string
+	var labelWidth int
+	if fullMatch {
+		label = m.gotoOverlayRowStyle.Render("⏎")
+		labelWidth = 1
+	} else {
+		var lb strings.Builder
+		for i, ch := range ref {
+			s := string(ch)
+			if i < matchLen {
+				lb.WriteString(m.gotoOverlayDimStyle.Render(s))
+			} else if i < split {
+				lb.WriteString(m.gotoOverlayColStyle.Render(s))
+			} else {
+				lb.WriteString(m.gotoOverlayRowStyle.Render(s))
+			}
+		}
+		label = lb.String()
+		labelWidth = runewidth.StringWidth(ref)
+	}
+
+	if labelWidth >= width {
+		return m.gotoOverlayColStyle.Render(truncate(ref, width))
+	}
+
+	// Center label over dimmed cell content.
+	content := []rune(fit(m.displayValue(row, col), width))
+	pad := (width - labelWidth) / 2
+
+	left := m.gotoOverlayDimStyle.Render(string(content[:min(pad, len(content))]))
+	right := m.gotoOverlayDimStyle.Render(string(content[min(pad+labelWidth, len(content)):]))
+
+	return left + label + right
+}
+
+func (m model) gotoBufferMatchesCol(col int) bool {
+	if m.gotoBuffer == "" {
+		return true
+	}
+	colLabel := strings.ToUpper(columnLabel(col))
+	// Extract the letter prefix from the buffer.
+	letterEnd := 0
+	for letterEnd < len(m.gotoBuffer) && isLetter(m.gotoBuffer[letterEnd]) {
+		letterEnd++
+	}
+	bufferLetters := m.gotoBuffer[:letterEnd]
+	if bufferLetters == "" {
+		return true // Buffer starts with digits (row-first), all columns match.
+	}
+	// Still typing column letters: column must be a possible completion.
+	if letterEnd == len(m.gotoBuffer) {
+		return strings.HasPrefix(colLabel, bufferLetters)
+	}
+	// Already typed full column + row digits: exact column match only.
+	return colLabel == bufferLetters
+}
+
+func (m model) gotoBufferMatchesRow(rowStr string) bool {
+	if m.gotoBuffer == "" {
+		return true
+	}
+	// Extract the numeric part of the buffer (after any letters).
+	numStart := 0
+	for numStart < len(m.gotoBuffer) && isLetter(m.gotoBuffer[numStart]) {
+		numStart++
+	}
+	if numStart >= len(m.gotoBuffer) {
+		return true // Buffer is all letters (column only), all rows match.
+	}
+	return strings.HasPrefix(rowStr, m.gotoBuffer[numStart:])
+}
+
+func (m model) gotoCellMatches(row, col int) bool {
+	if m.gotoBuffer == "" {
+		return true
+	}
+	ref := strings.ToUpper(cellRef(row, col))
+	return strings.HasPrefix(ref, m.gotoBuffer)
 }
 
 func (m model) cellBaseStyle(row, col int, formula, formulaError bool) (lipgloss.Style, bool) {
@@ -352,6 +480,9 @@ func (m *model) toggleSelectionFormatting(marker byte) {
 }
 
 func (m model) renderVerticalBorder(row, borderCol int) string {
+	if m.gotoPending {
+		return m.gotoOverlayDimStyle.Render("│")
+	}
 	if m.selectionVerticalBorderHighlighted(row, borderCol) {
 		return m.selectBorderStyle.Render("│")
 	}
@@ -360,6 +491,9 @@ func (m model) renderVerticalBorder(row, borderCol int) string {
 }
 
 func (m model) renderBorderSegment(borderRow, col int, segment string) string {
+	if m.gotoPending {
+		return m.gotoOverlayDimStyle.Render(segment)
+	}
 	if m.selectionHorizontalBorderHighlighted(borderRow, col) {
 		return m.selectBorderStyle.Render(segment)
 	}
@@ -368,6 +502,9 @@ func (m model) renderBorderSegment(borderRow, col int, segment string) string {
 }
 
 func (m model) renderBorderJunction(borderRow, borderCol int, fallback string) string {
+	if m.gotoPending {
+		return m.gotoOverlayDimStyle.Render(fallback)
+	}
 	if glyph, ok := m.selectionBorderJunction(borderRow, borderCol); ok {
 		return m.selectBorderStyle.Render(glyph)
 	}
